@@ -33,15 +33,7 @@ jobs:
           mv temp_modules/vendor ./vendor
           mv temp_modules/device ./device
           rm -rf temp_modules
-          echo "--- workspace layout ---"
-          ls -la
-          echo "--- symlink check ---"
-          ls -l kernel/msm-5.4/kernel/sched_assist
-          ls kernel/msm-5.4/kernel/sched_assist | head
-          echo "--- broken symlinks in kernel tree (should be empty) ---"
-          cd kernel/msm-5.4
-          find . -xtype l | head -50
-          echo "--- end ---"
+          ls -l kernel/msm-5.4/kernel/sched_assist | head -3
 
       - name: Show commits under test
         run: |
@@ -69,7 +61,7 @@ jobs:
           rm -f clang.tar.gz
           ./clang-bin/bin/clang --version
 
-      - name: make 9rt_defconfig
+      - name: Configure kernel (9rt_defconfig + production options)
         run: |
           cd kernel/msm-5.4
           export PATH="$GITHUB_WORKSPACE/compiler/clang-bin/bin:$PATH"
@@ -77,6 +69,18 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CLANG_TRIPLE=aarch64-linux-gnu-
           make O=out CC=clang LLVM=1 9rt_defconfig
+          ./scripts/config --file out/.config \
+            -e CONFIG_USER_NS \
+            -e CONFIG_PID_NS \
+            -e CONFIG_IPC_NS \
+            -e CONFIG_CHECKPOINT_RESTORE \
+            -e CONFIG_SYSVIPC \
+            -e CONFIG_KPROBES \
+            -e CONFIG_TMPFS_POSIX_ACL \
+            -e CONFIG_TMPFS_XATTR
+          make O=out CC=clang LLVM=1 olddefconfig
+          echo "--- relevant config ---"
+          grep -E '^CONFIG_(PID_NS|USER_NS|IPC_NS|CHECKPOINT_RESTORE|SYSVIPC|CLONE_BACKWARDS)' out/.config || true
 
       - name: Compile changed translation units
         run: |
