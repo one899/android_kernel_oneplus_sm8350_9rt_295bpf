@@ -18,10 +18,34 @@ jobs:
       - name: Checkout kernel source under test
         uses: actions/checkout@v6
         with:
+          path: kernel/msm-5.4
           fetch-depth: 1
+
+      - name: Checkout vendor/device trees (kernel/ symlinks depend on them)
+        uses: actions/checkout@v6
+        with:
+          repository: JackA1ltman/android_kernel_modules_and_devicetree_oneplus_sm8350
+          ref: oneplus/sm8350_b_16.0.0_oneplus9rt
+          path: temp_modules
+
+      - name: Place vendor and device
+        run: |
+          mv temp_modules/vendor ./vendor
+          mv temp_modules/device ./device
+          rm -rf temp_modules
+          echo "--- workspace layout ---"
+          ls -la
+          echo "--- symlink check ---"
+          ls -l kernel/msm-5.4/kernel/sched_assist
+          ls kernel/msm-5.4/kernel/sched_assist | head
+          echo "--- broken symlinks in kernel tree (should be empty) ---"
+          cd kernel/msm-5.4
+          find . -xtype l | head -50
+          echo "--- end ---"
 
       - name: Show commits under test
         run: |
+          cd kernel/msm-5.4
           git log --oneline -15
           echo "HEAD=$(git rev-parse HEAD)"
 
@@ -43,14 +67,12 @@ jobs:
           mkdir -p clang-bin
           tar -xzf clang.tar.gz -C clang-bin
           rm -f clang.tar.gz
-          echo "--- archive root ---"
-          ls clang-bin
-          echo "--- clang version ---"
           ./clang-bin/bin/clang --version
 
       - name: make 9rt_defconfig
         run: |
-          export PATH="$PWD/compiler/clang-bin/bin:$PATH"
+          cd kernel/msm-5.4
+          export PATH="$GITHUB_WORKSPACE/compiler/clang-bin/bin:$PATH"
           export ARCH=arm64 SUBARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CLANG_TRIPLE=aarch64-linux-gnu-
@@ -58,7 +80,8 @@ jobs:
 
       - name: Compile changed translation units
         run: |
-          export PATH="$PWD/compiler/clang-bin/bin:$PATH"
+          cd kernel/msm-5.4
+          export PATH="$GITHUB_WORKSPACE/compiler/clang-bin/bin:$PATH"
           export ARCH=arm64 SUBARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CLANG_TRIPLE=aarch64-linux-gnu-
@@ -74,7 +97,8 @@ jobs:
       - name: Full kernel build (informational)
         continue-on-error: true
         run: |
-          export PATH="$PWD/compiler/clang-bin/bin:$PATH"
+          cd kernel/msm-5.4
+          export PATH="$GITHUB_WORKSPACE/compiler/clang-bin/bin:$PATH"
           export ARCH=arm64 SUBARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CLANG_TRIPLE=aarch64-linux-gnu-
