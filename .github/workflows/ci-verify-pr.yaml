@@ -1,0 +1,81 @@
+name: CI - verify PR changes
+
+on:
+  push:
+    branches:
+      - 'ci/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Compile changed files, then full build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout kernel source under test
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Show commits under test
+        run: |
+          git log --oneline -15
+          echo "HEAD=$(git rev-parse HEAD)"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bc bison flex libssl-dev libelf-dev \
+            python3 python-is-python3 zip unzip cpio kmod rsync wget curl git \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            device-tree-compiler libxml2-utils dwarves lz4 zstd
+
+      - name: Fetch clang r383902 toolchain
+        run: |
+          mkdir -p compiler && cd compiler
+          curl -fL --retry 5 --retry-delay 5 --connect-timeout 30 \
+            "https://github.com/Rancemxn/android_kernel_oppo_sm7325/releases/download/BuildTool/linux-x86-refs_heads_llvm-r383902b-clang-r383902.tar.gz" \
+            -o clang.tar.gz
+          mkdir -p clang-bin
+          tar -xzf clang.tar.gz -C clang-bin
+          rm -f clang.tar.gz
+          echo "--- archive root ---"
+          ls clang-bin
+          echo "--- clang version ---"
+          ./clang-bin/bin/clang --version
+
+      - name: make 9rt_defconfig
+        run: |
+          export PATH="$PWD/compiler/clang-bin/bin:$PATH"
+          export ARCH=arm64 SUBARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          make O=out CC=clang LLVM=1 9rt_defconfig
+
+      - name: Compile changed translation units
+        run: |
+          export PATH="$PWD/compiler/clang-bin/bin:$PATH"
+          export ARCH=arm64 SUBARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          make O=out CC=clang LLVM=1 -j"$(nproc)" \
+            kernel/fork.o \
+            kernel/pid.o \
+            kernel/pid_namespace.o \
+            kernel/sys.o \
+            fs/file.o \
+            fs/proc/base.o \
+            drivers/tty/tty_ioctl.o
+
+      - name: Full kernel build (informational)
+        continue-on-error: true
+        run: |
+          export PATH="$PWD/compiler/clang-bin/bin:$PATH"
+          export ARCH=arm64 SUBARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          make O=out CC=clang LLVM=1 -j"$(nproc)"
