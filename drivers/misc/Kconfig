@@ -577,19 +577,6 @@ config HAPTIC_FEEDBACK
     help
       This option enables support for aw8697 series Haptic Driver Feedback.
 #endif /* OPLUS_FEATURE_LMVIBRATOR */
-config COLOR_ARCHIVE
-	bool "ColorArchive partition early reader"
-	depends on F2FS_FS
-	default n
-	help
-	  Read the ColorArchive partition before init runs and keep its
-	  contents in kernel memory.  The partition is located by its GPT
-	  label, so it does not depend on the by-name symlinks that init
-	  creates later.
-
-	  The partition must contain an f2fs image.
-
-	  If unsure, say N.
 
 
 source "drivers/misc/c2port/Kconfig"
