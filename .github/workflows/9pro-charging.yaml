@@ -239,51 +239,61 @@ jobs:
           #   gauge_ic/oplus_bq27541.o   <- bq27541-battery@55
           #   warp_ic/oplus_rk826.o      <- rk826_fastcg@0a
           # ==========================================================
+          # ==========================================================
+          # ★★★ 核心修复
+          # 1) drivers/power/Makefile: 强制编 oplus_chg/ (9 Pro 的框架)
+          # 2) oplus_chg 的 .c/.h 里强制定义 OPLUS_CHG_OP_DEF
+          #    (ccflags-y 对这个复合对象不生效, 所以直接改源码)
+          #    oplus_charger.h 里 15 处 #ifdef OPLUS_CHG_OP_DEF 依赖它:
+          #      CHG_VUSBIN_VOL_THR / charger_exist_delay / usb_chg_disable
+          #      disconnect_vbus / oplus_usb_type / reconnect_count ...
+          # ==========================================================
           echo "=== 修补 drivers/power/Makefile: 强制编 oplus_chg/ ==="
-          echo "--- 修改前 ---"
-          cat drivers/power/Makefile
           cp drivers/power/Makefile /tmp/power_makefile.bak
-          cp drivers/power/oplus_chg/Makefile /tmp/oplus_chg_makefile.bak
-          echo "--- oplus_chg/Makefile 修改前 ---"
-          cat drivers/power/oplus_chg/Makefile
-          # 无条件加 -DOPLUS_CHG_OP_DEF（oplus_charger.h 里 15 处 #ifdef 依赖它）
-          grep -q 'OPLUS_CHG_OP_DEF' drivers/power/oplus_chg/Makefile || echo 'ccflags-y += -DOPLUS_CHG_OP_DEF' >> drivers/power/oplus_chg/Makefile
-          echo "--- oplus_chg/Makefile 修改后 ---"
-          cat drivers/power/oplus_chg/Makefile
-          # 校验
-          if grep -q "OPLUS_CHG_OP_DEF" drivers/power/oplus_chg/Makefile; then
-            echo "  OK: -DOPLUS_CHG_OP_DEF 已加入"
-          else
-            echo "  FAIL: 宏未加入"
-            exit 1
-          fi
           sed -i 's|+= oplus/$|+= oplus_chg/|' drivers/power/Makefile
-          echo "--- 修改后 ---"
           cat drivers/power/Makefile
-          echo "--- 校验 ---"
           if grep -q "oplus_chg/" drivers/power/Makefile; then
             echo "  OK: oplus_chg/ 已进入 Makefile"
           else
-            echo "  FAIL: oplus_chg/ 未加入"
-            exit 1
+            echo "  FAIL: oplus_chg/ 未加入"; exit 1
           fi
+          echo ""
+          echo "=== 在 oplus_chg 源码里定义 OPLUS_CHG_OP_DEF ==="
+          cd drivers/power/oplus_chg
+          for f in $(find . -name '*.h' -o -name '*.c'); do
+            if ! grep -q 'define OPLUS_CHG_OP_DEF' "$f" 2>/dev/null; then
+              sed -i '1i #ifndef OPLUS_CHG_OP_DEF\n#define OPLUS_CHG_OP_DEF 1\n#endif' "$f"
+            fi
+          done
+          cd - >/dev/null
+          echo "  已处理的文件:"
+          grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg/ | head -40
+          n=$(grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg/ | wc -l)
+          echo "  文件数: $n"
+          if [ "$n" -lt 5 ]; then echo "  FAIL: 处理文件太少"; exit 1; fi
+          echo "  OK: 宏已在源码中定义"
+          echo ""
+          head -8 drivers/power/oplus_chg/oplus_charger.h
+          echo ""
+          head -8 drivers/power/oplus_chg/oplus_chg_intf.c
           echo ""
           echo "=== 开始编译 ==="
           make O=out CC="ccache clang" LLVM=1 -j$(nproc)
       - name: Verify v2 charging objects built
         if: always()
         run: |
+          cd kernel/msm-5.4
           echo "=== drivers/power/Makefile 最终内容 ==="
           cat drivers/power/Makefile
           echo ""
           echo "=== oplus_chg/ 编译产物 (9 Pro 驱动) ==="
-          find kernel/msm-5.4/out/drivers/power/oplus_chg -name "*.o" 2>/dev/null | sort
+          find out/drivers/power/oplus_chg -name "*.o" 2>/dev/null | sort
           echo ""
           echo "=== 关键 .o 是否存在 ==="
           for f in oplus_chg_intf oplus_chg_gki oplus_warp oplus_charger oplus_gauge \
                    charger_ic/oplus_hl7227 charger_ic/oplus_pm8350b charger_ic/oplus_sm8350 \
                    wireless_ic/oplus_p9415 gauge_ic/oplus_bq27541 warp_ic/oplus_rk826; do
-            if ls kernel/msm-5.4/out/drivers/power/oplus_chg/$f.o >/dev/null 2>&1; then
+            if ls out/drivers/power/oplus_chg/$f.o >/dev/null 2>&1; then
               echo "  OK   $f.o"
             else
               echo "  MISS $f.o"
@@ -291,7 +301,7 @@ jobs:
           done
           echo ""
           echo "=== oplus_chg/built-in.a ==="
-          ls -la kernel/msm-5.4/out/drivers/power/oplus_chg/built-in.a 2>/dev/null || echo "  不存在"
+          ls -la out/drivers/power/oplus_chg/built-in.a 2>/dev/null || echo "  不存在"
 
       - name: Package with AnyKernel3
         run: |
