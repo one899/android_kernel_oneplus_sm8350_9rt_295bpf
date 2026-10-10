@@ -170,6 +170,35 @@ jobs:
           ./scripts/config --file out/.config -e CONFIG_QPNP_QG || true
           ./scripts/config --file out/.config -e CONFIG_QPNP_SMB5 || true
 
+          # ==========================================================
+          # ★★★ 关键：9 Pro (ColorOS16) 的 DTB 是 v2 架构
+          #   soc/oplus,chg_intf      compatible: oplus_chg_intf
+          #   soc/oplus,chg_gki       compatible: oplus_chg_gki
+          #   soc/oplus,chg_warp      compatible: oplus_chg_warp
+          #   这些驱动全在 v2/ 里，而 v2 默认【不编】
+          #   -> 开 v2 让框架能匹配 DTB 节点
+          # ==========================================================
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_V2 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_VOOCPHY_CHGLIB || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_ADSP_VOOCPHY || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_AP_VOOCPHY || true
+
+          # 9 Pro 实际硬件 (来自 /proc/devinfo: charger=mp2650 gauge=bq27541)
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_MP2762_CHARGER || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHARGEPUMP_HL7227 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_WIRELESS_P9415 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_WIRELESS_NU1619 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_MASTER_SC8547 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_SC8517 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_HL7138 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_SMART_CHARGE || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_UFCS_SC2201 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_UFCS_SC8547A || true
+
+          # 加大内核 log 缓冲：2MB -> 8MB，否则开机日志 10 分钟就被冲掉
+          ./scripts/config --file out/.config --set-val CONFIG_LOG_BUF_SHIFT 23 || true
+          ./scripts/config --file out/.config --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 18 || true
+
           # 9RT 专属符号（官方 9Pro 没有）
           ./scripts/config --file out/.config -d CONFIG_OPLUS_CHG_OP9RT_PMIC_VOOCPHY || true
 
@@ -189,10 +218,23 @@ jobs:
           make O=out CC="ccache clang" LLVM=1 olddefconfig
 
           echo "=== 充电相关配置核对 ==="
-          grep -E 'CONFIG_OPLUS_CHG|CONFIG_QCOM_POWER_SUPPLY|CONFIG_QPNP_QG|CONFIG_QPNP_SMB5|CONFIG_QTI_BATTERY_CHARGER|CONFIG_POWER_SUPPLY=|CONFIG_MFD_SPMI_PMIC|CONFIG_QCOM_SPMI_ADC5|CONFIG_TYPEC' out/.config | sort
+          grep -E 'CONFIG_OPLUS_CHG|CONFIG_OPLUS_MP2762|CONFIG_OPLUS_CHARGEPUMP|CONFIG_OPLUS_WIRELESS|CONFIG_OPLUS_VOOCPHY|CONFIG_OPLUS_SMART_CHARGE|CONFIG_OPLUS_UFCS|CONFIG_QCOM_POWER_SUPPLY|CONFIG_QPNP_QG|CONFIG_QPNP_SMB5|CONFIG_QTI_BATTERY_CHARGER|CONFIG_POWER_SUPPLY=|CONFIG_MFD_SPMI_PMIC|CONFIG_QCOM_SPMI_ADC5|CONFIG_TYPEC|CONFIG_LOG_BUF_SHIFT|CONFIG_LOG_CPU_MAX' out/.config | sort
 
           echo "=== 开始编译 ==="
           make O=out CC="ccache clang" LLVM=1 -j$(nproc)
+      - name: Verify v2 charging objects built
+        if: always()
+        run: |
+          echo "=== 检查 v2 充电驱动是否编出 .o ==="
+          for pat in oplus_chg_gki oplus_chg_wired oplus_chg_mutual oplus_hal_bq27541 oplus_hal_rk826 oplus_hal_mp2650 oplus_hal_hl7227 oplus_hal_p9415; do
+            n=$(grep -c "$pat" build.log 2>/dev/null || echo 0)
+            echo "  $pat : $n"
+          done
+          echo "=== v2 目录编译产物 ==="
+          find kernel/msm-5.4/out/drivers/power/oplus/v2 -name "*.o" 2>/dev/null | head -30
+          echo "=== power_supply 相关 built-in.a ==="
+          ls -la kernel/msm-5.4/out/drivers/power/oplus/v2/built-in.a 2>/dev/null || echo "  v2 built-in.a 不存在"
+
       - name: Package with AnyKernel3
         run: |
           git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
