@@ -220,20 +220,64 @@ jobs:
           echo "=== 充电相关配置核对 ==="
           grep -E 'CONFIG_OPLUS_CHG|CONFIG_OPLUS_MP2762|CONFIG_OPLUS_CHARGEPUMP|CONFIG_OPLUS_WIRELESS|CONFIG_OPLUS_VOOCPHY|CONFIG_OPLUS_SMART_CHARGE|CONFIG_OPLUS_UFCS|CONFIG_QCOM_POWER_SUPPLY|CONFIG_QPNP_QG|CONFIG_QPNP_SMB5|CONFIG_QTI_BATTERY_CHARGER|CONFIG_POWER_SUPPLY=|CONFIG_MFD_SPMI_PMIC|CONFIG_QCOM_SPMI_ADC5|CONFIG_TYPEC|CONFIG_LOG_BUF_SHIFT|CONFIG_LOG_CPU_MAX' out/.config | sort
 
+          # ==========================================================
+          # ★★★ 核心修复：切换充电驱动目录
+          # drivers/power/Makefile:
+          #   ifeq (OPLUS_CHG_OP9RT_PMIC_VOOCPHY, y) -> oplus/      (9RT)
+          #   else ifeq (CHG_FOR_OP9_PRO, y)         -> oplus_chg/  (9 Pro)
+          #   else                                    -> oplus/
+          # CONFIG_OPLUS_CHG_OP9RT_PMIC_VOOCPHY 是 default y 的有效符号,
+          # scripts/config -d 关不掉(olddefconfig 会设回 y), 所以直接改 Makefile。
+          #
+          # oplus_chg/ 里正是 9 Pro DTB 需要的驱动:
+          #   oplus_chg_intf.o  <- soc/oplus,chg_intf  -> oplus_chg_intf
+          #   oplus_chg_gki.o   <- soc/oplus,chg_gki   -> oplus_chg_gki
+          #   oplus_warp.o      <- soc/oplus,warp_chg  -> oplus_chg_warp
+          #   charger_ic/oplus_hl7227.o  <- oplus,hl7227@51
+          #   charger_ic/oplus_pm8350b.o <- pm8350b
+          #   wireless_ic/oplus_p9415.o  <- oplus,p9415@3b
+          #   gauge_ic/oplus_bq27541.o   <- bq27541-battery@55
+          #   warp_ic/oplus_rk826.o      <- rk826_fastcg@0a
+          # ==========================================================
+          echo "=== 修补 drivers/power/Makefile: 强制编 oplus_chg/ ==="
+          echo "--- 修改前 ---"
+          cat drivers/power/Makefile
+          cp drivers/power/Makefile /tmp/power_makefile.bak
+          sed -i 's|+= oplus/$|+= oplus_chg/|' drivers/power/Makefile
+          echo "--- 修改后 ---"
+          cat drivers/power/Makefile
+          echo "--- 校验 ---"
+          if grep -q "oplus_chg/" drivers/power/Makefile; then
+            echo "  OK: oplus_chg/ 已进入 Makefile"
+          else
+            echo "  FAIL: oplus_chg/ 未加入"
+            exit 1
+          fi
+          echo ""
           echo "=== 开始编译 ==="
           make O=out CC="ccache clang" LLVM=1 -j$(nproc)
       - name: Verify v2 charging objects built
         if: always()
         run: |
-          echo "=== 检查 v2 充电驱动是否编出 .o ==="
-          for pat in oplus_chg_gki oplus_chg_wired oplus_chg_mutual oplus_hal_bq27541 oplus_hal_rk826 oplus_hal_mp2650 oplus_hal_hl7227 oplus_hal_p9415; do
-            n=$(grep -c "$pat" build.log 2>/dev/null || echo 0)
-            echo "  $pat : $n"
+          echo "=== drivers/power/Makefile 最终内容 ==="
+          cat drivers/power/Makefile
+          echo ""
+          echo "=== oplus_chg/ 编译产物 (9 Pro 驱动) ==="
+          find kernel/msm-5.4/out/drivers/power/oplus_chg -name "*.o" 2>/dev/null | sort
+          echo ""
+          echo "=== 关键 .o 是否存在 ==="
+          for f in oplus_chg_intf oplus_chg_gki oplus_warp oplus_charger oplus_gauge \
+                   charger_ic/oplus_hl7227 charger_ic/oplus_pm8350b charger_ic/oplus_sm8350 \
+                   wireless_ic/oplus_p9415 gauge_ic/oplus_bq27541 warp_ic/oplus_rk826; do
+            if ls kernel/msm-5.4/out/drivers/power/oplus_chg/$f.o >/dev/null 2>&1; then
+              echo "  OK   $f.o"
+            else
+              echo "  MISS $f.o"
+            fi
           done
-          echo "=== v2 目录编译产物 ==="
-          find kernel/msm-5.4/out/drivers/power/oplus/v2 -name "*.o" 2>/dev/null | head -30
-          echo "=== power_supply 相关 built-in.a ==="
-          ls -la kernel/msm-5.4/out/drivers/power/oplus/v2/built-in.a 2>/dev/null || echo "  v2 built-in.a 不存在"
+          echo ""
+          echo "=== oplus_chg/built-in.a ==="
+          ls -la kernel/msm-5.4/out/drivers/power/oplus_chg/built-in.a 2>/dev/null || echo "  不存在"
 
       - name: Package with AnyKernel3
         run: |
