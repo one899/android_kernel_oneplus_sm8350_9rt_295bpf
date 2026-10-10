@@ -252,6 +252,26 @@ jobs:
           cp drivers/power/Makefile /tmp/power_makefile.bak
           sed -i 's|+= oplus/$|+= oplus_chg/|' drivers/power/Makefile
           cat drivers/power/Makefile
+          echo ""
+          echo "=== 处理 voter 符号冲突 ==="
+          # oplus_chg/oplus_chg_voter.c 和 qcom/pmic-voter.c 导出完全同名的符号
+          # (lock_votable/unlock_votable/vote/create_votable/... 共 20 个)
+          # 原厂 9 Pro 是 CONFIG_QTI_BATTERY_CHARGER=m (模块,不进 vmlinux),
+          # 而 9RT defconfig 是 =y, 所以两份 voter 同时进 vmlinux -> duplicate symbol
+          # 两份符号完全一致, 删掉 OPLUS 那份即可。
+          echo "--- 冲突的 voter 文件 ---"
+          ls -la drivers/power/oplus_chg/oplus_chg_voter.c drivers/power/supply/qcom/pmic-voter.c 2>&1
+          grep -c "^EXPORT_SYMBOL" drivers/power/oplus_chg/oplus_chg_voter.c drivers/power/supply/qcom/pmic-voter.c 2>&1
+          cp drivers/power/oplus_chg/Makefile /tmp/oplus_chg_mk.bak
+          sed -i '/oplus_chg_voter\.o/d' drivers/power/oplus_chg/Makefile
+          echo "--- 修改后: voter 行是否已删除 ---"
+          if grep -q "oplus_chg_voter" drivers/power/oplus_chg/Makefile; then
+            echo "  FAIL: 未删除"; exit 1
+          else
+            echo "  OK: oplus_chg_voter.o 已从 Makefile 移除"
+          fi
+          cat drivers/power/oplus_chg/Makefile
+          echo ""
           if grep -q "oplus_chg/" drivers/power/Makefile; then
             echo "  OK: oplus_chg/ 已进入 Makefile"
           else
