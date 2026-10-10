@@ -1,3 +1,6 @@
+#ifndef OPLUS_CHG_OP_DEF
+#define OPLUS_CHG_OP_DEF 1
+#endif
 /************************************************************************************
 ** File:  \\192.168.144.3\Linux_Share\12015\ics2\development\mediatek\custom\oplus77_12015\kernel\battery\battery
 ** VENDOR_EDIT

@@ -1,3 +1,6 @@
+#ifndef OPLUS_CHG_OP_DEF
+#define OPLUS_CHG_OP_DEF 1
+#endif
 /* SPDX-License-Identifier: GPL-2.0-only  */
 /*
  * Copyright (C) 2020-2022 Oplus. All rights reserved.

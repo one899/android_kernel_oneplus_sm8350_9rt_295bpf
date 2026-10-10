@@ -1,3 +1,6 @@
+#ifndef OPLUS_CHG_OP_DEF
+#define OPLUS_CHG_OP_DEF 1
+#endif
 /**********************************************************************
 ** File: msm_amss\adsp_proc\core\battman\battmngr\externalfg\src\oplus_bq27541.c
 ** VENDOR_EDIT

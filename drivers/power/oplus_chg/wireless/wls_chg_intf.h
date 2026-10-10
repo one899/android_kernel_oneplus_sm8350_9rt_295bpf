@@ -1,3 +1,6 @@
+#ifndef OPLUS_CHG_OP_DEF
+#define OPLUS_CHG_OP_DEF 1
+#endif
 #ifndef __WLS_CHG_INTF_H__
 #define __WLS_CHG_INTF_H__
 

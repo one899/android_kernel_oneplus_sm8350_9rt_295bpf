@@ -1,3 +1,6 @@
+#ifndef OPLUS_CHG_OP_DEF
+#define OPLUS_CHG_OP_DEF 1
+#endif
 #define pr_fmt(fmt) "OPLUS_CHG[P9415]: %s[%d]: " fmt, __func__, __LINE__
 
 #include <linux/interrupt.h>

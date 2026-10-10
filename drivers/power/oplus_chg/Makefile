@@ -12,7 +12,6 @@ oplus_chg-obj-y += oplus_chg_gki.o
 oplus_chg-obj-y += oplus_chg_ic.o
 oplus_chg-obj-y += oplus_chg_wls.o
 oplus_chg-obj-y += oplus_chg_comm.o
-oplus_chg-obj-y += oplus_chg_voter.o
 oplus_chg-obj-y += oplus_chg_cfg.o
 oplus_chg-obj-y += oplus_chg_strategy.o
 

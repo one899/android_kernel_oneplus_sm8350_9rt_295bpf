@@ -1,3 +1,6 @@
+#ifndef OPLUS_CHG_OP_DEF
+#define OPLUS_CHG_OP_DEF 1
+#endif
 /* Copyright (c) 2014-2015 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify

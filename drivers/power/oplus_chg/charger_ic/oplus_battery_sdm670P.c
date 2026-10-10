@@ -1,3 +1,6 @@
+#ifndef OPLUS_CHG_OP_DEF
+#define OPLUS_CHG_OP_DEF 1
+#endif
 /**********************************************************************
 * Copyright (c)  2018-2019  Guangdong OPLUS Mobile Comm Corp., Ltd
 * VENDOR_EDIT

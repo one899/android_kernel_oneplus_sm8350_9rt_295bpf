@@ -1,3 +1,6 @@
+#ifndef OPLUS_CHG_OP_DEF
+#define OPLUS_CHG_OP_DEF 1
+#endif
 #ifndef __WLS_CHG_FW_H__
 #define __WLS_CHG_FW_H__
 #include <linux/types.h>

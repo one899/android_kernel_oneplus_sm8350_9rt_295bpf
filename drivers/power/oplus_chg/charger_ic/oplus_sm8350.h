@@ -1,3 +1,6 @@
+#ifndef OPLUS_CHG_OP_DEF
+#define OPLUS_CHG_OP_DEF 1
+#endif
 
 #ifndef __SM8350_CHARGER_H
 #define __SM8350_CHARGER_H

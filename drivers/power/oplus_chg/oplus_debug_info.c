@@ -1,3 +1,6 @@
+#ifndef OPLUS_CHG_OP_DEF
+#define OPLUS_CHG_OP_DEF 1
+#endif
 #include <linux/power_supply.h>
 #include <linux/mutex.h>
 #include <linux/power_supply.h>

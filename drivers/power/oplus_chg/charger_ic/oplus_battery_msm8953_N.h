@@ -1,3 +1,6 @@
+#ifndef OPLUS_CHG_OP_DEF
+#define OPLUS_CHG_OP_DEF 1
+#endif
 #ifndef _OPLUS_BATTERY_QCOM_MSM8953_N_H_
 #define _OPLUS_BATTERY_QCOM_MSM8953_N_H_
 
