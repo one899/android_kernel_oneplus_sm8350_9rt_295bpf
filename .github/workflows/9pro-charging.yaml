@@ -248,10 +248,11 @@ jobs:
           #      CHG_VUSBIN_VOL_THR / charger_exist_delay / usb_chg_disable
           #      disconnect_vbus / oplus_usb_type / reconnect_count ...
           # ==========================================================
+          set +e   # 补丁阶段容错, 编译命令前会重新 set -e
           echo "=== 修补 drivers/power/Makefile: 强制编 oplus_chg/ ==="
           cp drivers/power/Makefile /tmp/power_makefile.bak
           sed -i 's|+= oplus/$|+= oplus_chg/|' drivers/power/Makefile
-          cat drivers/power/Makefile
+          cat drivers/power/Makefile 2>/dev/null || true
           echo ""
           echo "=== 处理 voter 符号冲突 ==="
           # oplus_chg/oplus_chg_voter.c 和 qcom/pmic-voter.c 导出完全同名的符号
@@ -260,8 +261,12 @@ jobs:
           # 而 9RT defconfig 是 =y, 所以两份 voter 同时进 vmlinux -> duplicate symbol
           # 两份符号完全一致, 删掉 OPLUS 那份即可。
           echo "--- 冲突的 voter 文件 ---"
-          ls -la drivers/power/oplus_chg/oplus_chg_voter.c drivers/power/supply/qcom/pmic-voter.c 2>&1
-          grep -c "^EXPORT_SYMBOL" drivers/power/oplus_chg/oplus_chg_voter.c drivers/power/supply/qcom/pmic-voter.c 2>&1
+          ls -la drivers/power/oplus_chg/oplus_chg_voter.c drivers/power/supply/qcom/pmic-voter.c 2>&1 || true
+          echo "  (两个文件大小接近, 是同名符号的副本)"
+          echo "  oplus_chg_voter.c 定义的符号:"
+          grep -oE "^[a-z_]+ ?\**?[a-z_]+\(|^(int|void|bool|struct [a-z_]+ \*)\**[a-z_]+\(" drivers/power/oplus_chg/oplus_chg_voter.c 2>/dev/null | head -20 || true
+          echo "  pmic-voter.c 定义的符号:"
+          grep -oE "^[a-z_]+ ?\**?[a-z_]+\(|^(int|void|bool|struct [a-z_]+ \*)\**[a-z_]+\(" drivers/power/supply/qcom/pmic-voter.c 2>/dev/null | head -20 || true
           cp drivers/power/oplus_chg/Makefile /tmp/oplus_chg_mk.bak
           sed -i '/oplus_chg_voter\.o/d' drivers/power/oplus_chg/Makefile
           echo "--- 修改后: voter 行是否已删除 ---"
@@ -285,18 +290,19 @@ jobs:
               sed -i '1i #ifndef OPLUS_CHG_OP_DEF\n#define OPLUS_CHG_OP_DEF 1\n#endif' "$f"
             fi
           done
-          cd - >/dev/null
+          cd - >/dev/null 2>&1 || true
           echo "  已处理的文件:"
-          grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg/ | head -40
-          n=$(grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg/ | wc -l)
+          grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg/ 2>/dev/null | head -40 || true
+          n=$(grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg/ 2>/dev/null | wc -l || echo 0)
           echo "  文件数: $n"
           if [ "$n" -lt 5 ]; then echo "  FAIL: 处理文件太少"; exit 1; fi
           echo "  OK: 宏已在源码中定义"
           echo ""
-          head -8 drivers/power/oplus_chg/oplus_charger.h
+          head -8 drivers/power/oplus_chg/oplus_charger.h 2>/dev/null || true
           echo ""
-          head -8 drivers/power/oplus_chg/oplus_chg_intf.c
+          head -8 drivers/power/oplus_chg/oplus_chg_intf.c 2>/dev/null || true
           echo ""
+          set -e   # 编译阶段恢复严格模式
           echo "=== 开始编译 ==="
           make O=out CC="ccache clang" LLVM=1 -j$(nproc)
       - name: Verify v2 charging objects built
@@ -307,7 +313,7 @@ jobs:
           cat drivers/power/Makefile
           echo ""
           echo "=== oplus_chg/ 编译产物 (9 Pro 驱动) ==="
-          find out/drivers/power/oplus_chg -name "*.o" 2>/dev/null | sort
+          find out/drivers/power/oplus_chg -name "*.o" 2>/dev/null | sort || true
           echo ""
           echo "=== 关键 .o 是否存在 ==="
           for f in oplus_chg_intf oplus_chg_gki oplus_warp oplus_charger oplus_gauge \
