@@ -229,6 +229,11 @@ static int xhci_plat_probe(struct platform_device *pdev)
 			return ret;
 	}
 
+	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_use_autosuspend(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
+	pm_runtime_get_noresume(&pdev->dev);
+
 	hcd = __usb_create_hcd(driver, sysdev, &pdev->dev,
 			       dev_name(&pdev->dev), NULL);
 	if (!hcd)
@@ -353,6 +358,9 @@ static int xhci_plat_probe(struct platform_device *pdev)
 			ret = -ENOMEM;
 			goto dealloc_usb2_hcd;
 		}
+	if (HCC_MAX_PSA(xhci->hcc_params) >= 4 &&
+	    !(xhci->quirks & XHCI_BROKEN_STREAMS))
+		xhci->shared_hcd->can_do_streams = 1;
 
 		xhci->shared_hcd->tpl_support = hcd->tpl_support;
 	}
