@@ -1088,6 +1088,8 @@ static void remove_dirconn_tlmm(struct irq_data *d, irq_hw_number_t irq)
 		return;
 
 	dir_conn_data->chip->irq_mask(dir_conn_data);
+}
+
 static void msm_gpio_irq_init_valid_mask(struct gpio_chip *gc,
 					 unsigned long *valid_mask,
 					 unsigned int ngpios)
