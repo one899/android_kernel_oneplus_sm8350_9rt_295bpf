@@ -1745,6 +1745,7 @@ static struct usb_function *ncm_alloc(struct usb_function_instance *fi)
 {
 	struct f_ncm		*ncm;
 	struct f_ncm_opts	*opts;
+	int status;
 
 	/* allocate and initialize one new instance */
 	ncm = kzalloc(sizeof(*ncm), GFP_KERNEL);
@@ -1754,7 +1755,6 @@ static struct usb_function *ncm_alloc(struct usb_function_instance *fi)
 	opts = container_of(fi, struct f_ncm_opts, func_inst);
 	mutex_lock(&opts->lock);
 	opts->refcnt++;
-	ncm_string_defs[STRING_MAC_IDX].s = ncm->ethaddr;
 
 	/* export host's Ethernet address in CDC format */
 	status = gether_get_host_addr_cdc(opts->net, ncm->ethaddr,
