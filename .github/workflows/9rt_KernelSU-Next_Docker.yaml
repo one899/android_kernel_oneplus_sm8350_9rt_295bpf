@@ -150,6 +150,23 @@ jobs:
           ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS
           ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS_MOUNT
           ./scripts/config --file out/.config --enable CONFIG_OVERLAY_FS
+          # ==== kernel release string (MUST stay space free) ====
+          # kernel/module.c same_magic() skips past the first space of vermagic
+          # when CONFIG_MODVERSIONS=y, so a space in UTS_RELEASE makes every
+          # vendor module mismatch and nothing loads -> boot hang.
+          cat > scripts/setlocalversion <<'SLV'
+          #!/bin/sh
+          echo "-qgki-ColorArchive-Ultra-26.10.13"
+          SLV
+          chmod +x scripts/setlocalversion
+          ./scripts/config --file out/.config --set-str LOCALVERSION ""
+          ./scripts/config --file out/.config -d LOCALVERSION_AUTO
+          REL="5.4.295-qgki-ColorArchive-Ultra-26.10.13"
+          case "$REL" in
+            *" "*) echo "FATAL: kernel release contains a space: $REL"; exit 1 ;;
+          esac
+          echo "kernel release will be: $REL"
+          # =====================================================
           make O=out CC="ccache clang" LLVM=1 -j$(nproc)
       - name: Package with AnyKernel3
         run: |
@@ -329,6 +346,23 @@ jobs:
           ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS
           ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS_MOUNT
           ./scripts/config --file out/.config --enable CONFIG_OVERLAY_FS
+          # ==== kernel release string (MUST stay space free) ====
+          # kernel/module.c same_magic() skips past the first space of vermagic
+          # when CONFIG_MODVERSIONS=y, so a space in UTS_RELEASE makes every
+          # vendor module mismatch and nothing loads -> boot hang.
+          cat > scripts/setlocalversion <<'SLV'
+          #!/bin/sh
+          echo "-qgki-ColorArchive-Ultra-26.10.13"
+          SLV
+          chmod +x scripts/setlocalversion
+          ./scripts/config --file out/.config --set-str LOCALVERSION ""
+          ./scripts/config --file out/.config -d LOCALVERSION_AUTO
+          REL="5.4.295-qgki-ColorArchive-Ultra-26.10.13"
+          case "$REL" in
+            *" "*) echo "FATAL: kernel release contains a space: $REL"; exit 1 ;;
+          esac
+          echo "kernel release will be: $REL"
+          # =====================================================
           make O=out CC="ccache clang" LLVM=1 -j$(nproc)
       - name: Package with AnyKernel3
         run: |
