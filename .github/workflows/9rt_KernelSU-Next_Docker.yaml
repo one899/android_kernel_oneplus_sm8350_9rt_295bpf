@@ -1,4 +1,4 @@
-name: Build 9RT kernel (BakaSU + no-root)
+name: Build 9RT kernel (KernelSU-Next + no-root)
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-root:
-    name: Compile Kernel (BakaSU)
+    name: Compile Kernel (KernelSU-Next)
     runs-on: ubuntu-24.04
 
     steps:
@@ -68,7 +68,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ccache-${{ github.ref_name }}-${{ github.sha }}
+          key: ccache-root-${{ github.ref_name }}-${{ github.sha }}
           restore-keys: |
             ccache-${{ github.ref_name }}-
             ccache-
@@ -150,20 +150,6 @@ jobs:
           ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS
           ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS_MOUNT
           ./scripts/config --file out/.config --enable CONFIG_OVERLAY_FS
-          # ==== exact kernel release string ====
-          # Must end up as exactly: 5.4.295-ColorArchive Ultra-26.10.13
-          # scripts/setlocalversion is what appends -g<sha>/-dirty, so replace it
-          # with a fixed reader of ./localversion and blank CONFIG_LOCALVERSION.
-          printf '%s' '-ColorArchive Ultra-26.10.13' > localversion
-          cat > scripts/setlocalversion <<'SLV'
-          #!/bin/sh
-          cat "$1/localversion" 2>/dev/null
-          SLV
-          chmod +x scripts/setlocalversion
-          ./scripts/config --file out/.config --set-str LOCALVERSION ""
-          ./scripts/config --file out/.config -d LOCALVERSION_AUTO
-          echo "kernel release will be:"; cat localversion; echo
-          # =====================================
           make O=out CC="ccache clang" LLVM=1 -j$(nproc)
       - name: Package with AnyKernel3
         run: |
@@ -285,7 +271,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ccache-${{ github.ref_name }}-${{ github.sha }}
+          key: ccache-noroot-${{ github.ref_name }}-${{ github.sha }}
           restore-keys: |
             ccache-${{ github.ref_name }}-
             ccache-
@@ -343,20 +329,6 @@ jobs:
           ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS
           ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS_MOUNT
           ./scripts/config --file out/.config --enable CONFIG_OVERLAY_FS
-          # ==== exact kernel release string ====
-          # Must end up as exactly: 5.4.295-ColorArchive Ultra-26.10.13
-          # scripts/setlocalversion is what appends -g<sha>/-dirty, so replace it
-          # with a fixed reader of ./localversion and blank CONFIG_LOCALVERSION.
-          printf '%s' '-ColorArchive Ultra-26.10.13' > localversion
-          cat > scripts/setlocalversion <<'SLV'
-          #!/bin/sh
-          cat "$1/localversion" 2>/dev/null
-          SLV
-          chmod +x scripts/setlocalversion
-          ./scripts/config --file out/.config --set-str LOCALVERSION ""
-          ./scripts/config --file out/.config -d LOCALVERSION_AUTO
-          echo "kernel release will be:"; cat localversion; echo
-          # =====================================
           make O=out CC="ccache clang" LLVM=1 -j$(nproc)
       - name: Package with AnyKernel3
         run: |
