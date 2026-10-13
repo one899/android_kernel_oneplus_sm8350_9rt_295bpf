@@ -325,11 +325,16 @@ jobs:
           curl -LSs https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/user.h -o include/linux/sched/user.h
           patch -p1 < 001.GKI-below-6.12-fix_sysvipc_kabi_3_4_5.patch
           echo "添加docker补丁完成"
-          # BakaSU (formerly ReSukiSU, itself a KernelSU-Next fork)
-          KSU_TAG=$(git ls-remote --tags --refs https://github.com/Baka-SU/BakaSU 2>/dev/null | rev | cut -d/ -f1 | rev | sort -V | tail -n1)
-          echo "Using BakaSU tag: $KSU_TAG"
-          curl -fLSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" -o ksu_setup.sh
-          bash ksu_setup.sh "$KSU_TAG"
+          # ReSukiSU - same recipe as the working 254 build, see
+          # one899/Kernel_oneplus_8350_5.4.254bpf
+          #   .github/workflows/Build_ReSukiSU_Docker_EEVDF_Kernel.yaml
+          # Two things matter here:
+          #   * rm -rf KernelSU first. The tree carries a KernelSU entry, and
+          #     without removing it setup.sh ends up mixing two trees, which
+          #     builds but hangs at boot.
+          #   * no tag argument; upstream main is what the 254 build uses.
+          rm -rf KernelSU
+          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
           sed -i 's|pr_info("handle_setresuid|pr_debug("handle_setresuid|' drivers/kernelsu/hook/setuid_hook.c 2>/dev/null || true
           curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/syscall_hook_patches.sh" -o syscall_hook_patches.sh
           chmod +x syscall_hook_patches.sh
