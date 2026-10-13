@@ -151,21 +151,23 @@ jobs:
           ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS_MOUNT
           ./scripts/config --file out/.config --enable CONFIG_OVERLAY_FS
           # ==== kernel release string (MUST stay space free) ====
+          # Form: 5.4.295-qgki-ColorArchive-Ultra-<YY.MM.DD of the build date>
+          # e.g. a build on 2026-10-15 reports ...-Ultra-26.10.15
+          #
           # kernel/module.c same_magic() skips past the first space of vermagic
           # when CONFIG_MODVERSIONS=y, so a space in UTS_RELEASE makes every
-          # vendor module mismatch and nothing loads -> boot hang.
-          cat > scripts/setlocalversion <<'SLV'
-          #!/bin/sh
-          echo "-qgki-ColorArchive-Ultra-26.10.13"
-          SLV
+          # vendor module mismatch and nothing loads -> boot hang. Keep it
+          # space free; the guard below aborts the build if it ever is not.
+          KREL_DATE=$(date +%y.%m.%d)
+          KREL="5.4.295-qgki-ColorArchive-Ultra-${KREL_DATE}"
+          case "$KREL" in
+            *" "*) echo "FATAL: kernel release contains a space: $KREL"; exit 1 ;;
+          esac
+          printf '#!/bin/sh\necho "%s"\n' "-qgki-ColorArchive-Ultra-${KREL_DATE}" > scripts/setlocalversion
           chmod +x scripts/setlocalversion
           ./scripts/config --file out/.config --set-str LOCALVERSION ""
           ./scripts/config --file out/.config -d LOCALVERSION_AUTO
-          REL="5.4.295-qgki-ColorArchive-Ultra-26.10.13"
-          case "$REL" in
-            *" "*) echo "FATAL: kernel release contains a space: $REL"; exit 1 ;;
-          esac
-          echo "kernel release will be: $REL"
+          echo "kernel release will be: $KREL"
           # =====================================================
           make O=out CC="ccache clang" LLVM=1 -j$(nproc)
       - name: Package with AnyKernel3
@@ -377,21 +379,23 @@ jobs:
           ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS_MOUNT
           ./scripts/config --file out/.config --enable CONFIG_OVERLAY_FS
           # ==== kernel release string (MUST stay space free) ====
+          # Form: 5.4.295-qgki-ColorArchive-Ultra-<YY.MM.DD of the build date>
+          # e.g. a build on 2026-10-15 reports ...-Ultra-26.10.15
+          #
           # kernel/module.c same_magic() skips past the first space of vermagic
           # when CONFIG_MODVERSIONS=y, so a space in UTS_RELEASE makes every
-          # vendor module mismatch and nothing loads -> boot hang.
-          cat > scripts/setlocalversion <<'SLV'
-          #!/bin/sh
-          echo "-qgki-ColorArchive-Ultra-26.10.13"
-          SLV
+          # vendor module mismatch and nothing loads -> boot hang. Keep it
+          # space free; the guard below aborts the build if it ever is not.
+          KREL_DATE=$(date +%y.%m.%d)
+          KREL="5.4.295-qgki-ColorArchive-Ultra-${KREL_DATE}"
+          case "$KREL" in
+            *" "*) echo "FATAL: kernel release contains a space: $KREL"; exit 1 ;;
+          esac
+          printf '#!/bin/sh\necho "%s"\n' "-qgki-ColorArchive-Ultra-${KREL_DATE}" > scripts/setlocalversion
           chmod +x scripts/setlocalversion
           ./scripts/config --file out/.config --set-str LOCALVERSION ""
           ./scripts/config --file out/.config -d LOCALVERSION_AUTO
-          REL="5.4.295-qgki-ColorArchive-Ultra-26.10.13"
-          case "$REL" in
-            *" "*) echo "FATAL: kernel release contains a space: $REL"; exit 1 ;;
-          esac
-          echo "kernel release will be: $REL"
+          echo "kernel release will be: $KREL"
           # =====================================================
           make O=out CC="ccache clang" LLVM=1 -j$(nproc)
       - name: Package with AnyKernel3
@@ -573,21 +577,23 @@ jobs:
           ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS_MOUNT
           ./scripts/config --file out/.config --enable CONFIG_OVERLAY_FS
           # ==== kernel release string (MUST stay space free) ====
+          # Form: 5.4.295-qgki-ColorArchive-Ultra-<YY.MM.DD of the build date>
+          # e.g. a build on 2026-10-15 reports ...-Ultra-26.10.15
+          #
           # kernel/module.c same_magic() skips past the first space of vermagic
           # when CONFIG_MODVERSIONS=y, so a space in UTS_RELEASE makes every
-          # vendor module mismatch and nothing loads -> boot hang.
-          cat > scripts/setlocalversion <<'SLV'
-          #!/bin/sh
-          echo "-qgki-ColorArchive-Ultra-26.10.13"
-          SLV
+          # vendor module mismatch and nothing loads -> boot hang. Keep it
+          # space free; the guard below aborts the build if it ever is not.
+          KREL_DATE=$(date +%y.%m.%d)
+          KREL="5.4.295-qgki-ColorArchive-Ultra-${KREL_DATE}"
+          case "$KREL" in
+            *" "*) echo "FATAL: kernel release contains a space: $KREL"; exit 1 ;;
+          esac
+          printf '#!/bin/sh\necho "%s"\n' "-qgki-ColorArchive-Ultra-${KREL_DATE}" > scripts/setlocalversion
           chmod +x scripts/setlocalversion
           ./scripts/config --file out/.config --set-str LOCALVERSION ""
           ./scripts/config --file out/.config -d LOCALVERSION_AUTO
-          REL="5.4.295-qgki-ColorArchive-Ultra-26.10.13"
-          case "$REL" in
-            *" "*) echo "FATAL: kernel release contains a space: $REL"; exit 1 ;;
-          esac
-          echo "kernel release will be: $REL"
+          echo "kernel release will be: $KREL"
           # =====================================================
           make O=out CC="ccache clang" LLVM=1 -j$(nproc)
       - name: Package with AnyKernel3
