@@ -5,6 +5,7 @@ on:
     branches:
       - 'release/**'
       - 'perf/**'
+      - 'test/**'
   workflow_dispatch:
 
 jobs:
