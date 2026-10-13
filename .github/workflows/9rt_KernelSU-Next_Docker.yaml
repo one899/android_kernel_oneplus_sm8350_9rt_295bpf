@@ -165,7 +165,8 @@ jobs:
           ./scripts/config --file out/.config -d LOCALVERSION_AUTO
           echo "kernel release will be:"; cat localversion; echo
           # =====================================
-          make O=out CC="ccache clang" LLVM=1 -j$(nproc)      - name: Package with AnyKernel3
+          make O=out CC="ccache clang" LLVM=1 -j$(nproc)
+      - name: Package with AnyKernel3
         run: |
           git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
           sed -i '584s|ui_print " " "Done!";|ui_print " "; ui_print "感谢支持芜夕wuxi内核，刷入完成！"; ui_print "祝你玩的愉快！";|' AnyKernel3/META-INF/com/google/android/update-binary
@@ -359,7 +360,8 @@ jobs:
           ./scripts/config --file out/.config -d LOCALVERSION_AUTO
           echo "kernel release will be:"; cat localversion; echo
           # =====================================
-          make O=out CC="ccache clang" LLVM=1 -j$(nproc)      - name: Package with AnyKernel3
+          make O=out CC="ccache clang" LLVM=1 -j$(nproc)
+      - name: Package with AnyKernel3
         run: |
           git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
           sed -i '584s|ui_print " " "Done!";|ui_print " "; ui_print "感谢支持芜夕wuxi内核，刷入完成！"; ui_print "祝你玩的愉快！";|' AnyKernel3/META-INF/com/google/android/update-binary
