@@ -327,7 +327,6 @@ jobs:
           sed -i 's/obj-$(CONFIG_KPROBES)/obj-y/g' kernel/Makefile
           echo "正在用命令重构并清空报错的 selinux_hide.c..."
           make O=out CC="ccache clang" LLVM=1 9rt_defconfig  
-          ./scripts/config --file out/.config \
           # ==== Enable namespaces for Droidspaces ====
           ./scripts/config --file out/.config \
             -e CONFIG_USER_NS \
