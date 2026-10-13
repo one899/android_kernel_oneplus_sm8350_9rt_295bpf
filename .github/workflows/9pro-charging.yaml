@@ -1,18 +1,15 @@
-name: Build for OnePlus 9/9 Pro (eevdf base + Docker + charging)
+name: Build OnePlus 9 / 9 Pro kernel (KernelSU-Next + ReSukiSU + no-root)
 
 on:
   push:
     branches:
-      - 'test/**'
+      - 'release/**'
+      - 'perf/**'
   workflow_dispatch:
-    inputs:
-      charging_fix:
-        description: '应用 9/9Pro 充电配置修正'
-        type: boolean
-        default: true
+
 jobs:
-  build:
-    name: Compile Kernel
+  build-root:
+    name: Compile Kernel (KernelSU-Next)
     runs-on: ubuntu-24.04
 
     steps:
@@ -71,7 +68,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ccache-${{ github.ref_name }}-${{ github.sha }}
+          key: ccache-root-${{ github.ref_name }}-${{ github.sha }}
           restore-keys: |
             ccache-${{ github.ref_name }}-
             ccache-
@@ -304,6 +301,25 @@ jobs:
           echo ""
           set -e   # 编译阶段恢复严格模式
           echo "=== 开始编译 ==="
+          # ==== kernel release string (MUST stay space free) ====
+          # Form: 5.4.295-qgki-ColorArchive-Ultra-OnePlus9-<YY.MM.DD>
+          # e.g. a build on 2026-10-15 reports ...-Ultra-26.10.15
+          #
+          # kernel/module.c same_magic() skips past the first space of vermagic
+          # when CONFIG_MODVERSIONS=y, so a space in UTS_RELEASE makes every
+          # vendor module mismatch and nothing loads -> boot hang. Keep it
+          # space free; the guard below aborts the build if it ever is not.
+          KREL_DATE=$(date +%y.%m.%d)
+          KREL="5.4.295-qgki-ColorArchive-Ultra-OnePlus9-${KREL_DATE}"
+          case "$KREL" in
+            *" "*) echo "FATAL: kernel release contains a space: $KREL"; exit 1 ;;
+          esac
+          printf '#!/bin/sh\necho "%s"\n' "-qgki-ColorArchive-Ultra-OnePlus9-${KREL_DATE}" > scripts/setlocalversion
+          chmod +x scripts/setlocalversion
+          ./scripts/config --file out/.config --set-str LOCALVERSION ""
+          ./scripts/config --file out/.config -d LOCALVERSION_AUTO
+          echo "kernel release will be: $KREL"
+          # =====================================================
           make O=out CC="ccache clang" LLVM=1 -j$(nproc)
       - name: Verify v2 charging objects built
         if: always()
@@ -390,3 +406,778 @@ jobs:
             boot-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.img
             9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.zip
 
+  build-bakasu:
+    name: Compile Kernel (ReSukiSU / BakaSU)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Configure Fast APT Mirror
+        uses: vegardit/fast-apt-mirror.sh@v1
+
+      - name: Make Build Environment
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y kmod cpio binutils cmake binutils-aarch64-linux-gnu git wget pahole automake flex lzop bison gperf build-essential zip curl zlib1g-dev libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip dwarves device-tree-compiler python3 ccache git-lfs gnupg imagemagick libelf-dev libncurses5-dev libsdl1.2-dev gpart fuse2fs e2fsck-static icu-doc rsync adb fastboot libstdc++6 python-is-python3 gcc-aarch64-linux-gnu 
+          mkdir -p kernel
+      - name: Checkout Kernel Source
+        uses: actions/checkout@v6
+        with:
+          path: kernel/msm-5.4
+          fetch-depth: 1
+
+      - name: Checkout Modules Source
+        uses: actions/checkout@v6
+        with:
+          repository: one899/android_kernel_modules_and_devicetree_oneplus_sm8350
+          path: temp_modules
+          ref: oneplus/sm8350_b_16.0.0_oneplus9rt
+
+      - name: Prepare Compiler
+        run: |
+          mkdir -p compiler
+          cd compiler
+          
+          curl -fL "https://github.com/Rancemxn/android_kernel_oppo_sm7325/releases/download/BuildTool/linux-x86-refs_heads_llvm-r383902b-clang-r383902.tar.gz" -o clang-r383902.tar.gz --connect-timeout 30 --retry 5 --retry-delay 5
+          mkdir -p clang-bin
+          tar -xzf clang-r383902.tar.gz -C clang-bin
+          rm clang-r383902.tar.gz
+      - name: Handle Dependencies
+        run: |
+          mv temp_modules/vendor ./vendor
+          mv temp_modules/device ./device
+          rm -rf temp_modules
+      - name: Set Release Info & Custom Version
+        run: |
+          BUILD_DATE=$(date +%Y%m%d)
+          echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
+
+      - name: rekernel
+        run: |
+          cd kernel/msm-5.4
+          curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/Rekernel/rekernel_patches.sh" -o rekernel_patches.sh
+          chmod +x rekernel_patches.sh
+          bash rekernel_patches.sh
+          mkdir -p drivers/rekernel
+          curl https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/Rekernel/rekernel_extra.patch -o rekernel_extra.patch
+          patch -p1 < rekernel_extra.patch || true
+          
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-bakasu-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ github.ref_name }}-
+            ccache-
+
+      - name: Configure ccache
+        run: |
+          ccache --max-size=3G
+          ccache --set-config=compression=true
+          ccache --set-config=compiler_check=content
+          ccache --set-config=sloppiness=time_macros,include_file_mtime,include_file_ctime,file_stat_matches
+          ccache --zero-stats || true
+          ccache --show-config | head -25
+
+      - name: Compile Kernel
+        run: |
+          export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
+          export CROSS_COMPILE="aarch64-linux-gnu-"
+          export CCACHE_DIR="$HOME/.ccache"
+          export CCACHE_BASEDIR="$GITHUB_WORKSPACE"
+          export CCACHE_COMPILERCHECK=content
+          export CROSS_COMPILE_ARM32="arm-linux-androideabi-"
+          export CLANG_TRIPLE="aarch64-linux-gnu-"
+          export CLANG_PATH="$(pwd)/compiler/clang-bin/bin"
+          export ARCH="arm64"
+          export SUBARCH="arm64"
+          cd kernel/msm-5.4
+          echo "添加docker补丁中"
+          rm fs/overlayfs/util.c
+          curl -LSs "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/util.c" -o fs/overlayfs/util.c
+          rm kernel/module.c
+          curl -LSs "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/module.c" -o kernel/module.c
+          rm include/linux/sched/user.h
+          curl -LSs https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/refs/heads/main/Documentation/resources/kernel-patches/GKI/below-kernel-6.12/001.GKI-below-6.12-fix_sysvipc_kabi_3_4_5.patch -o 001.GKI-below-6.12-fix_sysvipc_kabi_3_4_5.patch
+          curl -LSs https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/user.h -o include/linux/sched/user.h
+          patch -p1 < 001.GKI-below-6.12-fix_sysvipc_kabi_3_4_5.patch
+          echo "添加docker补丁完成"
+          # ReSukiSU - same recipe as the working 254 build, see
+          # one899/Kernel_oneplus_8350_5.4.254bpf
+          #   .github/workflows/Build_ReSukiSU_Docker_EEVDF_Kernel.yaml
+          # Two things matter here:
+          #   * rm -rf KernelSU first. The tree carries a KernelSU entry, and
+          #     without removing it setup.sh ends up mixing two trees, which
+          #     builds but hangs at boot.
+          #   * no tag argument; upstream main is what the 254 build uses.
+          rm -rf KernelSU
+          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+          sed -i 's|pr_info("handle_setresuid|pr_debug("handle_setresuid|' drivers/kernelsu/hook/setuid_hook.c 2>/dev/null || true
+          curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/syscall_hook_patches.sh" -o syscall_hook_patches.sh
+          chmod +x syscall_hook_patches.sh
+          bash syscall_hook_patches.sh
+          sed -i '/ksu_handle_devpts/d' drivers/tty/pty.c
+          sed -i 's/obj-$(CONFIG_KPROBES)/obj-y/g' kernel/Makefile
+          echo "正在用命令重构并清空报错的 selinux_hide.c..."
+          cat << 'EOF' > drivers/kernelsu/feature/selinux_hide.c
+          #include <linux/types.h>
+          #include <linux/kernel.h>
+          bool ksu_selinux_hide_status_get(void) { return false; }
+          void ksu_selinux_hide_status_set(bool enable) { }
+          int ksu_selinux_hide_init(void) { return 0; }
+          void ksu_selinux_hide_exit(void) { }
+          bool ksu_selinux_hide_enable(void) { return true; }
+          void ksu_selinux_hide_drop_backup_if_unused(void) { }
+          void ksu_selinux_hide_handle_second_stage(void) { }
+          void ksu_selinux_hide_handle_post_fs_data(void) { }
+          EOF
+          make O=out CC="ccache clang" LLVM=1 9rt_defconfig  
+          ./scripts/config --file out/.config \
+            -d CONFIG_KSU_TRACEPOINT_HOOK \
+            -e CONFIG_KSU_MANUAL_HOOK
+          # ==== Enable namespaces for Droidspaces ====
+          ./scripts/config --file out/.config \
+            -e CONFIG_USER_NS \
+            -e CONFIG_PID_NS \
+            -e CONFIG_IPC_NS \
+            -e CONFIG_CHECKPOINT_RESTORE \
+            -e CONFIG_SYSVIPC \
+            -e CONFIG_KPROBES \
+            -e CONFIG_TMPFS_POSIX_ACL \
+            -e CONFIG_TMPFS_XATTR
+          # ==========================================
+          ./scripts/config --file out/.config --enable CONFIG_CGROUP_PIDS
+          ./scripts/config --file out/.config --enable CONFIG_CGROUP_IO
+          ./scripts/config --file out/.config --enable CONFIG_CPUSETS
+          ./scripts/config --file out/.config --enable CONFIG_MEMCG
+          ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS
+          ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS_MOUNT
+          ./scripts/config --file out/.config --enable CONFIG_OVERLAY_FS
+          # ==========================================================
+          # OnePlus 9 / 9 Pro 充电配置对齐
+          # 依据: OnePlusOSS/android_kernel_oneplus_sm8350
+          #        @oneplus/sm8350_u_14.0.0_oneplus9
+          #        (arch/arm64/configs/vendor/lahaina_{QGKI,GKI}.config)
+          #
+          # 9/9Pro 与 9RT 的充电硬件完全不同:
+          #   9/9Pro: bq27541 电量计 + rk826/sy6610 快充IC + hl7227 充电泵
+          #   9RT   : adsp-voocphy (软件 VOOC PHY) + chg_ops="plat-pmic"
+          # ==========================================================
+          echo "=== 应用 9/9Pro 充电配置 ==="
+
+          # 高通 PMIC 供电路径（电量/FCC 兜底）—— 9RT 关着，官方 9Pro 用
+          ./scripts/config --file out/.config -e CONFIG_QCOM_POWER_SUPPLY || true
+          ./scripts/config --file out/.config -e CONFIG_QPNP_QG || true
+          ./scripts/config --file out/.config -e CONFIG_QPNP_SMB5 || true
+
+          # ==========================================================
+          # ★★★ 关键：9 Pro (ColorOS16) 的 DTB 是 v2 架构
+          #   soc/oplus,chg_intf      compatible: oplus_chg_intf
+          #   soc/oplus,chg_gki       compatible: oplus_chg_gki
+          #   soc/oplus,chg_warp      compatible: oplus_chg_warp
+          #   这些驱动全在 v2/ 里，而 v2 默认【不编】
+          #   -> 开 v2 让框架能匹配 DTB 节点
+          # ==========================================================
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_V2 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_VOOCPHY_CHGLIB || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_ADSP_VOOCPHY || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_AP_VOOCPHY || true
+
+          # 9 Pro 实际硬件 (来自 /proc/devinfo: charger=mp2650 gauge=bq27541)
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_MP2762_CHARGER || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHARGEPUMP_HL7227 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_WIRELESS_P9415 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_WIRELESS_NU1619 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_MASTER_SC8547 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_SC8517 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_HL7138 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_SMART_CHARGE || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_UFCS_SC2201 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_UFCS_SC8547A || true
+
+          # 加大内核 log 缓冲：2MB -> 8MB，否则开机日志 10 分钟就被冲掉
+          ./scripts/config --file out/.config --set-val CONFIG_LOG_BUF_SHIFT 23 || true
+          ./scripts/config --file out/.config --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 18 || true
+
+          # 9RT 专属符号（官方 9Pro 没有）
+          ./scripts/config --file out/.config -d CONFIG_OPLUS_CHG_OP9RT_PMIC_VOOCPHY || true
+
+          # OPLUS 充电子系统（官方 9Pro 与 9RT 都是 y）
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_SM8350_CHARGER || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_TEST_KIT || true
+
+          # 电池/温度采样
+          ./scripts/config --file out/.config -e CONFIG_POWER_SUPPLY || true
+          ./scripts/config --file out/.config -e CONFIG_MFD_SPMI_PMIC || true
+          ./scripts/config --file out/.config -e CONFIG_QCOM_SPMI_ADC5 || true
+          ./scripts/config --file out/.config -e CONFIG_QTI_BATTERY_CHARGER || true
+          ./scripts/config --file out/.config -e CONFIG_TYPEC || true
+          ./scripts/config --file out/.config -e CONFIG_TYPEC_UCSI || true
+
+          make O=out CC="ccache clang" LLVM=1 olddefconfig
+
+          echo "=== 充电相关配置核对 ==="
+          grep -E 'CONFIG_OPLUS_CHG|CONFIG_OPLUS_MP2762|CONFIG_OPLUS_CHARGEPUMP|CONFIG_OPLUS_WIRELESS|CONFIG_OPLUS_VOOCPHY|CONFIG_OPLUS_SMART_CHARGE|CONFIG_OPLUS_UFCS|CONFIG_QCOM_POWER_SUPPLY|CONFIG_QPNP_QG|CONFIG_QPNP_SMB5|CONFIG_QTI_BATTERY_CHARGER|CONFIG_POWER_SUPPLY=|CONFIG_MFD_SPMI_PMIC|CONFIG_QCOM_SPMI_ADC5|CONFIG_TYPEC|CONFIG_LOG_BUF_SHIFT|CONFIG_LOG_CPU_MAX' out/.config | sort
+
+          # ==========================================================
+          # ★★★ 核心修复：切换充电驱动目录
+          # drivers/power/Makefile:
+          #   ifeq (OPLUS_CHG_OP9RT_PMIC_VOOCPHY, y) -> oplus/      (9RT)
+          #   else ifeq (CHG_FOR_OP9_PRO, y)         -> oplus_chg/  (9 Pro)
+          #   else                                    -> oplus/
+          # CONFIG_OPLUS_CHG_OP9RT_PMIC_VOOCPHY 是 default y 的有效符号,
+          # scripts/config -d 关不掉(olddefconfig 会设回 y), 所以直接改 Makefile。
+          #
+          # oplus_chg/ 里正是 9 Pro DTB 需要的驱动:
+          #   oplus_chg_intf.o  <- soc/oplus,chg_intf  -> oplus_chg_intf
+          #   oplus_chg_gki.o   <- soc/oplus,chg_gki   -> oplus_chg_gki
+          #   oplus_warp.o      <- soc/oplus,warp_chg  -> oplus_chg_warp
+          #   charger_ic/oplus_hl7227.o  <- oplus,hl7227@51
+          #   charger_ic/oplus_pm8350b.o <- pm8350b
+          #   wireless_ic/oplus_p9415.o  <- oplus,p9415@3b
+          #   gauge_ic/oplus_bq27541.o   <- bq27541-battery@55
+          #   warp_ic/oplus_rk826.o      <- rk826_fastcg@0a
+          # ==========================================================
+          # ==========================================================
+          # ★★★ 核心修复
+          # 1) drivers/power/Makefile: 强制编 oplus_chg/ (9 Pro 的框架)
+          # 2) oplus_chg 的 .c/.h 里强制定义 OPLUS_CHG_OP_DEF
+          #    (ccflags-y 对这个复合对象不生效, 所以直接改源码)
+          #    oplus_charger.h 里 15 处 #ifdef OPLUS_CHG_OP_DEF 依赖它:
+          #      CHG_VUSBIN_VOL_THR / charger_exist_delay / usb_chg_disable
+          #      disconnect_vbus / oplus_usb_type / reconnect_count ...
+          # ==========================================================
+          set +e   # 补丁阶段容错, 编译命令前会重新 set -e
+          echo "=== 修补 drivers/power/Makefile: 强制编 oplus_chg/ ==="
+          cp drivers/power/Makefile /tmp/power_makefile.bak
+          sed -i 's|+= oplus/$|+= oplus_chg/|' drivers/power/Makefile
+          cat drivers/power/Makefile 2>/dev/null || true
+          echo ""
+          echo "=== 处理 voter 符号冲突 ==="
+          # oplus_chg/oplus_chg_voter.c 和 qcom/pmic-voter.c 导出完全同名的符号
+          # (lock_votable/unlock_votable/vote/create_votable/... 共 20 个)
+          # 原厂 9 Pro 是 CONFIG_QTI_BATTERY_CHARGER=m (模块,不进 vmlinux),
+          # 而 9RT defconfig 是 =y, 所以两份 voter 同时进 vmlinux -> duplicate symbol
+          # 两份符号完全一致, 删掉 OPLUS 那份即可。
+          echo "--- 冲突的 voter 文件 ---"
+          ls -la drivers/power/oplus_chg/oplus_chg_voter.c drivers/power/supply/qcom/pmic-voter.c 2>&1 || true
+          echo "  (两个文件大小接近, 是同名符号的副本)"
+          echo "  oplus_chg_voter.c 定义的符号:"
+          grep -oE "^[a-z_]+ ?\**?[a-z_]+\(|^(int|void|bool|struct [a-z_]+ \*)\**[a-z_]+\(" drivers/power/oplus_chg/oplus_chg_voter.c 2>/dev/null | head -20 || true
+          echo "  pmic-voter.c 定义的符号:"
+          grep -oE "^[a-z_]+ ?\**?[a-z_]+\(|^(int|void|bool|struct [a-z_]+ \*)\**[a-z_]+\(" drivers/power/supply/qcom/pmic-voter.c 2>/dev/null | head -20 || true
+          cp drivers/power/oplus_chg/Makefile /tmp/oplus_chg_mk.bak
+          sed -i '/oplus_chg_voter\.o/d' drivers/power/oplus_chg/Makefile
+          echo "--- 修改后: voter 行是否已删除 ---"
+          if grep -q "oplus_chg_voter" drivers/power/oplus_chg/Makefile; then
+            echo "  FAIL: 未删除"; exit 1
+          else
+            echo "  OK: oplus_chg_voter.o 已从 Makefile 移除"
+          fi
+          cat drivers/power/oplus_chg/Makefile
+          echo ""
+          if grep -q "oplus_chg/" drivers/power/Makefile; then
+            echo "  OK: oplus_chg/ 已进入 Makefile"
+          else
+            echo "  FAIL: oplus_chg/ 未加入"; exit 1
+          fi
+          echo ""
+          echo "=== 在 oplus_chg 源码里定义 OPLUS_CHG_OP_DEF ==="
+          cd drivers/power/oplus_chg
+          for f in $(find . -name '*.h' -o -name '*.c'); do
+            if ! grep -q 'define OPLUS_CHG_OP_DEF' "$f" 2>/dev/null; then
+              sed -i '1i #ifndef OPLUS_CHG_OP_DEF\n#define OPLUS_CHG_OP_DEF 1\n#endif' "$f"
+            fi
+          done
+          cd - >/dev/null 2>&1 || true
+          echo "  已处理的文件:"
+          grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg/ 2>/dev/null | head -40 || true
+          n=$(grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg/ 2>/dev/null | wc -l || echo 0)
+          echo "  文件数: $n"
+          if [ "$n" -lt 5 ]; then echo "  FAIL: 处理文件太少"; exit 1; fi
+          echo "  OK: 宏已在源码中定义"
+          echo ""
+          head -8 drivers/power/oplus_chg/oplus_charger.h 2>/dev/null || true
+          echo ""
+          head -8 drivers/power/oplus_chg/oplus_chg_intf.c 2>/dev/null || true
+          echo ""
+          set -e   # 编译阶段恢复严格模式
+          echo "=== 开始编译 ==="
+          # ==== kernel release string (MUST stay space free) ====
+          # Form: 5.4.295-qgki-ColorArchive-Ultra-OnePlus9-<YY.MM.DD>
+          # e.g. a build on 2026-10-15 reports ...-Ultra-26.10.15
+          #
+          # kernel/module.c same_magic() skips past the first space of vermagic
+          # when CONFIG_MODVERSIONS=y, so a space in UTS_RELEASE makes every
+          # vendor module mismatch and nothing loads -> boot hang. Keep it
+          # space free; the guard below aborts the build if it ever is not.
+          KREL_DATE=$(date +%y.%m.%d)
+          KREL="5.4.295-qgki-ColorArchive-Ultra-OnePlus9-${KREL_DATE}"
+          case "$KREL" in
+            *" "*) echo "FATAL: kernel release contains a space: $KREL"; exit 1 ;;
+          esac
+          printf '#!/bin/sh\necho "%s"\n' "-qgki-ColorArchive-Ultra-OnePlus9-${KREL_DATE}" > scripts/setlocalversion
+          chmod +x scripts/setlocalversion
+          ./scripts/config --file out/.config --set-str LOCALVERSION ""
+          ./scripts/config --file out/.config -d LOCALVERSION_AUTO
+          echo "kernel release will be: $KREL"
+          # =====================================================
+          make O=out CC="ccache clang" LLVM=1 -j$(nproc)
+      - name: Verify v2 charging objects built
+        if: always()
+        run: |
+          cd kernel/msm-5.4
+          echo "=== drivers/power/Makefile 最终内容 ==="
+          cat drivers/power/Makefile
+          echo ""
+          echo "=== oplus_chg/ 编译产物 (9 Pro 驱动) ==="
+          find out/drivers/power/oplus_chg -name "*.o" 2>/dev/null | sort || true
+          echo ""
+          echo "=== 关键 .o 是否存在 ==="
+          for f in oplus_chg_intf oplus_chg_gki oplus_warp oplus_charger oplus_gauge \
+                   charger_ic/oplus_hl7227 charger_ic/oplus_pm8350b charger_ic/oplus_sm8350 \
+                   wireless_ic/oplus_p9415 gauge_ic/oplus_bq27541 warp_ic/oplus_rk826; do
+            if ls out/drivers/power/oplus_chg/$f.o >/dev/null 2>&1; then
+              echo "  OK   $f.o"
+            else
+              echo "  MISS $f.o"
+            fi
+          done
+          echo ""
+          echo "=== oplus_chg/built-in.a ==="
+          ls -la out/drivers/power/oplus_chg/built-in.a 2>/dev/null || echo "  不存在"
+
+      - name: Package with AnyKernel3
+        run: |
+          git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
+          sed -i '584s|ui_print " " "Done!";|ui_print " "; ui_print "感谢支持芜夕wuxi内核，刷入完成！"; ui_print "祝你玩的愉快！";|' AnyKernel3/META-INF/com/google/android/update-binary
+          
+          cp kernel/msm-5.4/out/arch/arm64/boot/Image AnyKernel3/
+          mkdir -p AnyKernel3/modules/vendor/lib/modules
+          find kernel/msm-5.4/out/ -name "*.ko" -exec cp {} AnyKernel3/modules/vendor/lib/modules/ \;
+          
+          cd AnyKernel3
+          rm anykernel.sh
+          wget https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/anykernel.sh
+          zip -r9 ../resukisu-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.zip * -x .git* README.md *placeholder
+
+      - name: Pack Boot Image
+        run: |
+          pwd
+          mkdir -p boot_pack
+          cd boot_pack
+          wget https://raw.githubusercontent.com/miaizhe/magiskboot-linux/refs/heads/main/x86_64/magiskboot
+          chmod +x magiskboot
+          curl -fL "https://github.com/miaizhe/twrp_device_oppo_taylor/releases/download/TWRP/twrp-3.7.1_12-0-Reno10.img" -o boot_origin.img
+          ./magiskboot unpack boot_origin.img
+          if [ ! -f "../kernel/msm-5.4/out/arch/arm64/boot/Image" ]; then
+            echo "错误：编译出的 Image 文件不存在，请检查编译步骤！"
+            exit 1
+          fi
+          cp ../kernel/msm-5.4/out/arch/arm64/boot/Image kernel
+          ./magiskboot repack boot_origin.img ../boot-resukisu-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.img
+          pwd
+          cd ..
+          pwd
+
+      - name: Pack WithoutTWRP Boot Image
+        run: |
+          pwd
+          mkdir -p boot_pack
+          cd boot_pack
+          wget https://raw.githubusercontent.com/miaizhe/magiskboot-linux/refs/heads/main/x86_64/magiskboot
+          chmod +x magiskboot
+          curl -fL "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/boot_a.img" -o boot_origin.img
+          ./magiskboot unpack boot_origin.img
+          if [ ! -f "../kernel/msm-5.4/out/arch/arm64/boot/Image" ]; then
+            echo "错误：编译出的 Image 文件不存在，请检查编译步骤！"
+            exit 1
+          fi
+          cp ../kernel/msm-5.4/out/arch/arm64/boot/Image kernel
+          ./magiskboot repack boot_origin.img ../boot-resukisu-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.img
+          pwd
+          cd ..
+          pwd
+
+      - name: Upload Flashable Kernel
+        uses: actions/upload-artifact@v6
+        with:
+          name: resukisu-9Pro-eevdf-Docker-Charging
+          path: |
+            boot-resukisu-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.img
+            boot-resukisu-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.img
+            resukisu-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.zip
+
+  build-noroot:
+    name: Compile Kernel (no root)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Configure Fast APT Mirror
+        uses: vegardit/fast-apt-mirror.sh@v1
+
+      - name: Make Build Environment
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y kmod cpio binutils cmake binutils-aarch64-linux-gnu git wget pahole automake flex lzop bison gperf build-essential zip curl zlib1g-dev libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip dwarves device-tree-compiler python3 ccache git-lfs gnupg imagemagick libelf-dev libncurses5-dev libsdl1.2-dev gpart fuse2fs e2fsck-static icu-doc rsync adb fastboot libstdc++6 python-is-python3 gcc-aarch64-linux-gnu 
+          mkdir -p kernel
+      - name: Checkout Kernel Source
+        uses: actions/checkout@v6
+        with:
+          path: kernel/msm-5.4
+          fetch-depth: 1
+
+      - name: Checkout Modules Source
+        uses: actions/checkout@v6
+        with:
+          repository: one899/android_kernel_modules_and_devicetree_oneplus_sm8350
+          path: temp_modules
+          ref: oneplus/sm8350_b_16.0.0_oneplus9rt
+
+      - name: Prepare Compiler
+        run: |
+          mkdir -p compiler
+          cd compiler
+          
+          curl -fL "https://github.com/Rancemxn/android_kernel_oppo_sm7325/releases/download/BuildTool/linux-x86-refs_heads_llvm-r383902b-clang-r383902.tar.gz" -o clang-r383902.tar.gz --connect-timeout 30 --retry 5 --retry-delay 5
+          mkdir -p clang-bin
+          tar -xzf clang-r383902.tar.gz -C clang-bin
+          rm clang-r383902.tar.gz
+      - name: Handle Dependencies
+        run: |
+          mv temp_modules/vendor ./vendor
+          mv temp_modules/device ./device
+          rm -rf temp_modules
+      - name: Set Release Info & Custom Version
+        run: |
+          BUILD_DATE=$(date +%Y%m%d)
+          echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
+
+      - name: rekernel
+        run: |
+          cd kernel/msm-5.4
+          curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/Rekernel/rekernel_patches.sh" -o rekernel_patches.sh
+          chmod +x rekernel_patches.sh
+          bash rekernel_patches.sh
+          mkdir -p drivers/rekernel
+          curl https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/Rekernel/rekernel_extra.patch -o rekernel_extra.patch
+          patch -p1 < rekernel_extra.patch || true
+          
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-noroot-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ github.ref_name }}-
+            ccache-
+
+      - name: Configure ccache
+        run: |
+          ccache --max-size=3G
+          ccache --set-config=compression=true
+          ccache --set-config=compiler_check=content
+          ccache --set-config=sloppiness=time_macros,include_file_mtime,include_file_ctime,file_stat_matches
+          ccache --zero-stats || true
+          ccache --show-config | head -25
+
+      - name: Compile Kernel
+        run: |
+          export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
+          export CROSS_COMPILE="aarch64-linux-gnu-"
+          export CCACHE_DIR="$HOME/.ccache"
+          export CCACHE_BASEDIR="$GITHUB_WORKSPACE"
+          export CCACHE_COMPILERCHECK=content
+          export CROSS_COMPILE_ARM32="arm-linux-androideabi-"
+          export CLANG_TRIPLE="aarch64-linux-gnu-"
+          export CLANG_PATH="$(pwd)/compiler/clang-bin/bin"
+          export ARCH="arm64"
+          export SUBARCH="arm64"
+          cd kernel/msm-5.4
+          echo "添加docker补丁中"
+          rm fs/overlayfs/util.c
+          curl -LSs "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/util.c" -o fs/overlayfs/util.c
+          rm kernel/module.c
+          curl -LSs "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/module.c" -o kernel/module.c
+          rm include/linux/sched/user.h
+          curl -LSs https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/refs/heads/main/Documentation/resources/kernel-patches/GKI/below-kernel-6.12/001.GKI-below-6.12-fix_sysvipc_kabi_3_4_5.patch -o 001.GKI-below-6.12-fix_sysvipc_kabi_3_4_5.patch
+          curl -LSs https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/user.h -o include/linux/sched/user.h
+          patch -p1 < 001.GKI-below-6.12-fix_sysvipc_kabi_3_4_5.patch
+          echo "添加docker补丁完成"
+          sed -i 's/obj-$(CONFIG_KPROBES)/obj-y/g' kernel/Makefile
+          echo "正在用命令重构并清空报错的 selinux_hide.c..."
+          make O=out CC="ccache clang" LLVM=1 9rt_defconfig  
+          # ==== Enable namespaces for Droidspaces ====
+          ./scripts/config --file out/.config \
+            -e CONFIG_USER_NS \
+            -e CONFIG_PID_NS \
+            -e CONFIG_IPC_NS \
+            -e CONFIG_CHECKPOINT_RESTORE \
+            -e CONFIG_SYSVIPC \
+            -e CONFIG_KPROBES \
+            -e CONFIG_TMPFS_POSIX_ACL \
+            -e CONFIG_TMPFS_XATTR
+          # ==========================================
+          ./scripts/config --file out/.config --enable CONFIG_CGROUP_PIDS
+          ./scripts/config --file out/.config --enable CONFIG_CGROUP_IO
+          ./scripts/config --file out/.config --enable CONFIG_CPUSETS
+          ./scripts/config --file out/.config --enable CONFIG_MEMCG
+          ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS
+          ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS_MOUNT
+          ./scripts/config --file out/.config --enable CONFIG_OVERLAY_FS
+          # ==========================================================
+          # OnePlus 9 / 9 Pro 充电配置对齐
+          # 依据: OnePlusOSS/android_kernel_oneplus_sm8350
+          #        @oneplus/sm8350_u_14.0.0_oneplus9
+          #        (arch/arm64/configs/vendor/lahaina_{QGKI,GKI}.config)
+          #
+          # 9/9Pro 与 9RT 的充电硬件完全不同:
+          #   9/9Pro: bq27541 电量计 + rk826/sy6610 快充IC + hl7227 充电泵
+          #   9RT   : adsp-voocphy (软件 VOOC PHY) + chg_ops="plat-pmic"
+          # ==========================================================
+          echo "=== 应用 9/9Pro 充电配置 ==="
+
+          # 高通 PMIC 供电路径（电量/FCC 兜底）—— 9RT 关着，官方 9Pro 用
+          ./scripts/config --file out/.config -e CONFIG_QCOM_POWER_SUPPLY || true
+          ./scripts/config --file out/.config -e CONFIG_QPNP_QG || true
+          ./scripts/config --file out/.config -e CONFIG_QPNP_SMB5 || true
+
+          # ==========================================================
+          # ★★★ 关键：9 Pro (ColorOS16) 的 DTB 是 v2 架构
+          #   soc/oplus,chg_intf      compatible: oplus_chg_intf
+          #   soc/oplus,chg_gki       compatible: oplus_chg_gki
+          #   soc/oplus,chg_warp      compatible: oplus_chg_warp
+          #   这些驱动全在 v2/ 里，而 v2 默认【不编】
+          #   -> 开 v2 让框架能匹配 DTB 节点
+          # ==========================================================
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_V2 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_VOOCPHY_CHGLIB || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_ADSP_VOOCPHY || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_AP_VOOCPHY || true
+
+          # 9 Pro 实际硬件 (来自 /proc/devinfo: charger=mp2650 gauge=bq27541)
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_MP2762_CHARGER || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHARGEPUMP_HL7227 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_WIRELESS_P9415 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_WIRELESS_NU1619 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_MASTER_SC8547 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_SC8517 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_HL7138 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_SMART_CHARGE || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_UFCS_SC2201 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_UFCS_SC8547A || true
+
+          # 加大内核 log 缓冲：2MB -> 8MB，否则开机日志 10 分钟就被冲掉
+          ./scripts/config --file out/.config --set-val CONFIG_LOG_BUF_SHIFT 23 || true
+          ./scripts/config --file out/.config --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 18 || true
+
+          # 9RT 专属符号（官方 9Pro 没有）
+          ./scripts/config --file out/.config -d CONFIG_OPLUS_CHG_OP9RT_PMIC_VOOCPHY || true
+
+          # OPLUS 充电子系统（官方 9Pro 与 9RT 都是 y）
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_SM8350_CHARGER || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_TEST_KIT || true
+
+          # 电池/温度采样
+          ./scripts/config --file out/.config -e CONFIG_POWER_SUPPLY || true
+          ./scripts/config --file out/.config -e CONFIG_MFD_SPMI_PMIC || true
+          ./scripts/config --file out/.config -e CONFIG_QCOM_SPMI_ADC5 || true
+          ./scripts/config --file out/.config -e CONFIG_QTI_BATTERY_CHARGER || true
+          ./scripts/config --file out/.config -e CONFIG_TYPEC || true
+          ./scripts/config --file out/.config -e CONFIG_TYPEC_UCSI || true
+
+          make O=out CC="ccache clang" LLVM=1 olddefconfig
+
+          echo "=== 充电相关配置核对 ==="
+          grep -E 'CONFIG_OPLUS_CHG|CONFIG_OPLUS_MP2762|CONFIG_OPLUS_CHARGEPUMP|CONFIG_OPLUS_WIRELESS|CONFIG_OPLUS_VOOCPHY|CONFIG_OPLUS_SMART_CHARGE|CONFIG_OPLUS_UFCS|CONFIG_QCOM_POWER_SUPPLY|CONFIG_QPNP_QG|CONFIG_QPNP_SMB5|CONFIG_QTI_BATTERY_CHARGER|CONFIG_POWER_SUPPLY=|CONFIG_MFD_SPMI_PMIC|CONFIG_QCOM_SPMI_ADC5|CONFIG_TYPEC|CONFIG_LOG_BUF_SHIFT|CONFIG_LOG_CPU_MAX' out/.config | sort
+
+          # ==========================================================
+          # ★★★ 核心修复：切换充电驱动目录
+          # drivers/power/Makefile:
+          #   ifeq (OPLUS_CHG_OP9RT_PMIC_VOOCPHY, y) -> oplus/      (9RT)
+          #   else ifeq (CHG_FOR_OP9_PRO, y)         -> oplus_chg/  (9 Pro)
+          #   else                                    -> oplus/
+          # CONFIG_OPLUS_CHG_OP9RT_PMIC_VOOCPHY 是 default y 的有效符号,
+          # scripts/config -d 关不掉(olddefconfig 会设回 y), 所以直接改 Makefile。
+          #
+          # oplus_chg/ 里正是 9 Pro DTB 需要的驱动:
+          #   oplus_chg_intf.o  <- soc/oplus,chg_intf  -> oplus_chg_intf
+          #   oplus_chg_gki.o   <- soc/oplus,chg_gki   -> oplus_chg_gki
+          #   oplus_warp.o      <- soc/oplus,warp_chg  -> oplus_chg_warp
+          #   charger_ic/oplus_hl7227.o  <- oplus,hl7227@51
+          #   charger_ic/oplus_pm8350b.o <- pm8350b
+          #   wireless_ic/oplus_p9415.o  <- oplus,p9415@3b
+          #   gauge_ic/oplus_bq27541.o   <- bq27541-battery@55
+          #   warp_ic/oplus_rk826.o      <- rk826_fastcg@0a
+          # ==========================================================
+          # ==========================================================
+          # ★★★ 核心修复
+          # 1) drivers/power/Makefile: 强制编 oplus_chg/ (9 Pro 的框架)
+          # 2) oplus_chg 的 .c/.h 里强制定义 OPLUS_CHG_OP_DEF
+          #    (ccflags-y 对这个复合对象不生效, 所以直接改源码)
+          #    oplus_charger.h 里 15 处 #ifdef OPLUS_CHG_OP_DEF 依赖它:
+          #      CHG_VUSBIN_VOL_THR / charger_exist_delay / usb_chg_disable
+          #      disconnect_vbus / oplus_usb_type / reconnect_count ...
+          # ==========================================================
+          set +e   # 补丁阶段容错, 编译命令前会重新 set -e
+          echo "=== 修补 drivers/power/Makefile: 强制编 oplus_chg/ ==="
+          cp drivers/power/Makefile /tmp/power_makefile.bak
+          sed -i 's|+= oplus/$|+= oplus_chg/|' drivers/power/Makefile
+          cat drivers/power/Makefile 2>/dev/null || true
+          echo ""
+          echo "=== 处理 voter 符号冲突 ==="
+          # oplus_chg/oplus_chg_voter.c 和 qcom/pmic-voter.c 导出完全同名的符号
+          # (lock_votable/unlock_votable/vote/create_votable/... 共 20 个)
+          # 原厂 9 Pro 是 CONFIG_QTI_BATTERY_CHARGER=m (模块,不进 vmlinux),
+          # 而 9RT defconfig 是 =y, 所以两份 voter 同时进 vmlinux -> duplicate symbol
+          # 两份符号完全一致, 删掉 OPLUS 那份即可。
+          echo "--- 冲突的 voter 文件 ---"
+          ls -la drivers/power/oplus_chg/oplus_chg_voter.c drivers/power/supply/qcom/pmic-voter.c 2>&1 || true
+          echo "  (两个文件大小接近, 是同名符号的副本)"
+          echo "  oplus_chg_voter.c 定义的符号:"
+          grep -oE "^[a-z_]+ ?\**?[a-z_]+\(|^(int|void|bool|struct [a-z_]+ \*)\**[a-z_]+\(" drivers/power/oplus_chg/oplus_chg_voter.c 2>/dev/null | head -20 || true
+          echo "  pmic-voter.c 定义的符号:"
+          grep -oE "^[a-z_]+ ?\**?[a-z_]+\(|^(int|void|bool|struct [a-z_]+ \*)\**[a-z_]+\(" drivers/power/supply/qcom/pmic-voter.c 2>/dev/null | head -20 || true
+          cp drivers/power/oplus_chg/Makefile /tmp/oplus_chg_mk.bak
+          sed -i '/oplus_chg_voter\.o/d' drivers/power/oplus_chg/Makefile
+          echo "--- 修改后: voter 行是否已删除 ---"
+          if grep -q "oplus_chg_voter" drivers/power/oplus_chg/Makefile; then
+            echo "  FAIL: 未删除"; exit 1
+          else
+            echo "  OK: oplus_chg_voter.o 已从 Makefile 移除"
+          fi
+          cat drivers/power/oplus_chg/Makefile
+          echo ""
+          if grep -q "oplus_chg/" drivers/power/Makefile; then
+            echo "  OK: oplus_chg/ 已进入 Makefile"
+          else
+            echo "  FAIL: oplus_chg/ 未加入"; exit 1
+          fi
+          echo ""
+          echo "=== 在 oplus_chg 源码里定义 OPLUS_CHG_OP_DEF ==="
+          cd drivers/power/oplus_chg
+          for f in $(find . -name '*.h' -o -name '*.c'); do
+            if ! grep -q 'define OPLUS_CHG_OP_DEF' "$f" 2>/dev/null; then
+              sed -i '1i #ifndef OPLUS_CHG_OP_DEF\n#define OPLUS_CHG_OP_DEF 1\n#endif' "$f"
+            fi
+          done
+          cd - >/dev/null 2>&1 || true
+          echo "  已处理的文件:"
+          grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg/ 2>/dev/null | head -40 || true
+          n=$(grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg/ 2>/dev/null | wc -l || echo 0)
+          echo "  文件数: $n"
+          if [ "$n" -lt 5 ]; then echo "  FAIL: 处理文件太少"; exit 1; fi
+          echo "  OK: 宏已在源码中定义"
+          echo ""
+          head -8 drivers/power/oplus_chg/oplus_charger.h 2>/dev/null || true
+          echo ""
+          head -8 drivers/power/oplus_chg/oplus_chg_intf.c 2>/dev/null || true
+          echo ""
+          set -e   # 编译阶段恢复严格模式
+          echo "=== 开始编译 ==="
+          # ==== kernel release string (MUST stay space free) ====
+          # Form: 5.4.295-qgki-ColorArchive-Ultra-OnePlus9-<YY.MM.DD>
+          # e.g. a build on 2026-10-15 reports ...-Ultra-26.10.15
+          #
+          # kernel/module.c same_magic() skips past the first space of vermagic
+          # when CONFIG_MODVERSIONS=y, so a space in UTS_RELEASE makes every
+          # vendor module mismatch and nothing loads -> boot hang. Keep it
+          # space free; the guard below aborts the build if it ever is not.
+          KREL_DATE=$(date +%y.%m.%d)
+          KREL="5.4.295-qgki-ColorArchive-Ultra-OnePlus9-${KREL_DATE}"
+          case "$KREL" in
+            *" "*) echo "FATAL: kernel release contains a space: $KREL"; exit 1 ;;
+          esac
+          printf '#!/bin/sh\necho "%s"\n' "-qgki-ColorArchive-Ultra-OnePlus9-${KREL_DATE}" > scripts/setlocalversion
+          chmod +x scripts/setlocalversion
+          ./scripts/config --file out/.config --set-str LOCALVERSION ""
+          ./scripts/config --file out/.config -d LOCALVERSION_AUTO
+          echo "kernel release will be: $KREL"
+          # =====================================================
+          make O=out CC="ccache clang" LLVM=1 -j$(nproc)
+      - name: Verify v2 charging objects built
+        if: always()
+        run: |
+          cd kernel/msm-5.4
+          echo "=== drivers/power/Makefile 最终内容 ==="
+          cat drivers/power/Makefile
+          echo ""
+          echo "=== oplus_chg/ 编译产物 (9 Pro 驱动) ==="
+          find out/drivers/power/oplus_chg -name "*.o" 2>/dev/null | sort || true
+          echo ""
+          echo "=== 关键 .o 是否存在 ==="
+          for f in oplus_chg_intf oplus_chg_gki oplus_warp oplus_charger oplus_gauge \
+                   charger_ic/oplus_hl7227 charger_ic/oplus_pm8350b charger_ic/oplus_sm8350 \
+                   wireless_ic/oplus_p9415 gauge_ic/oplus_bq27541 warp_ic/oplus_rk826; do
+            if ls out/drivers/power/oplus_chg/$f.o >/dev/null 2>&1; then
+              echo "  OK   $f.o"
+            else
+              echo "  MISS $f.o"
+            fi
+          done
+          echo ""
+          echo "=== oplus_chg/built-in.a ==="
+          ls -la out/drivers/power/oplus_chg/built-in.a 2>/dev/null || echo "  不存在"
+
+      - name: Package with AnyKernel3
+        run: |
+          git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
+          sed -i '584s|ui_print " " "Done!";|ui_print " "; ui_print "感谢支持芜夕wuxi内核，刷入完成！"; ui_print "祝你玩的愉快！";|' AnyKernel3/META-INF/com/google/android/update-binary
+          
+          cp kernel/msm-5.4/out/arch/arm64/boot/Image AnyKernel3/
+          mkdir -p AnyKernel3/modules/vendor/lib/modules
+          find kernel/msm-5.4/out/ -name "*.ko" -exec cp {} AnyKernel3/modules/vendor/lib/modules/ \;
+          
+          cd AnyKernel3
+          rm anykernel.sh
+          wget https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/anykernel.sh
+          zip -r9 ../noroot-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.zip * -x .git* README.md *placeholder
+
+      - name: Pack Boot Image
+        run: |
+          pwd
+          mkdir -p boot_pack
+          cd boot_pack
+          wget https://raw.githubusercontent.com/miaizhe/magiskboot-linux/refs/heads/main/x86_64/magiskboot
+          chmod +x magiskboot
+          curl -fL "https://github.com/miaizhe/twrp_device_oppo_taylor/releases/download/TWRP/twrp-3.7.1_12-0-Reno10.img" -o boot_origin.img
+          ./magiskboot unpack boot_origin.img
+          if [ ! -f "../kernel/msm-5.4/out/arch/arm64/boot/Image" ]; then
+            echo "错误：编译出的 Image 文件不存在，请检查编译步骤！"
+            exit 1
+          fi
+          cp ../kernel/msm-5.4/out/arch/arm64/boot/Image kernel
+          ./magiskboot repack boot_origin.img ../boot-noroot-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.img
+          pwd
+          cd ..
+          pwd
+
+      - name: Pack WithoutTWRP Boot Image
+        run: |
+          pwd
+          mkdir -p boot_pack
+          cd boot_pack
+          wget https://raw.githubusercontent.com/miaizhe/magiskboot-linux/refs/heads/main/x86_64/magiskboot
+          chmod +x magiskboot
+          curl -fL "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/boot_a.img" -o boot_origin.img
+          ./magiskboot unpack boot_origin.img
+          if [ ! -f "../kernel/msm-5.4/out/arch/arm64/boot/Image" ]; then
+            echo "错误：编译出的 Image 文件不存在，请检查编译步骤！"
+            exit 1
+          fi
+          cp ../kernel/msm-5.4/out/arch/arm64/boot/Image kernel
+          ./magiskboot repack boot_origin.img ../boot-noroot-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.img
+          pwd
+          cd ..
+          pwd
+
+      - name: Upload Flashable Kernel
+        uses: actions/upload-artifact@v6
+        with:
+          name: noroot-9Pro-eevdf-Docker-Charging
+          path: |
+            boot-noroot-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.img
+            boot-noroot-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.img
+            noroot-9Pro-eevdf-Docker-${{ env.BUILD_DATE }}.zip
