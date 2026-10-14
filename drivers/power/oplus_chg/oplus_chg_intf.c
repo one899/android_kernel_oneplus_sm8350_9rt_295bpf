@@ -1441,6 +1441,28 @@ static int batt_err_code_table_color_to_oos(int notify_code)
 }
 #endif
 
+/*
+ * 设计容量（mAh）
+ *
+ * batt_capacity_mah 来自 DT 的 qcom,batt_capacity_mah，DT 没有该属性时会落到
+ * oplus_charger.c 里的占位值 2000，用它反推 SOH 会得到错误结果（3880/2000 =
+ * 194%）。这个驱动的 MODEL_NAME 固定为 "OP_4500mAh"，所以值不合理时回退到
+ * 4500。正常情况下 DT 的值会被直接使用。
+ */
+#define OPLUS_CHG_DESIGN_CAPACITY_FALLBACK	4500
+
+static int oplus_chg_intf_batt_design_capacity(struct oplus_chg_chip *chip)
+{
+	int cap = chip->batt_capacity_mah;
+
+	if (cap >= 3000 && cap <= 8000)
+		return cap;
+
+	pr_info("[OPLUS_CHG][batt_design_capacity] batt_capacity_mah=%d 不合理, 回退 %d\n",
+		cap, OPLUS_CHG_DESIGN_CAPACITY_FALLBACK);
+	return OPLUS_CHG_DESIGN_CAPACITY_FALLBACK;
+}
+
 static int oplus_chg_intf_batt_get_prop(struct oplus_chg_mod *ocm,
 			enum oplus_chg_mod_property prop,
 			union oplus_chg_mod_propval *pval)
@@ -1597,7 +1619,12 @@ static int oplus_chg_intf_batt_get_prop(struct oplus_chg_mod *ocm,
 		pval->intval = POWER_SUPPLY_TECHNOLOGY_LION;
 		break;
 	case OPLUS_CHG_PROP_CYCLE_COUNT:
-		pval->intval = 0;
+		/*
+		 * 原实现硬编码返回 0（OEM 占位），导致 power_supply 侧
+		 * cycle_count 永远为 0，而 battery_cc 节点报的是真实值。
+		 * 两者同源，统一用 gauge 的循环次数。
+		 */
+		pval->intval = chip->batt_cc;
 		break;
 	case OPLUS_CHG_PROP_VOLTAGE_OCV:
 		pval->intval = 4000000;
@@ -1613,7 +1640,12 @@ static int oplus_chg_intf_batt_get_prop(struct oplus_chg_mod *ocm,
 		pval->intval = 2200000; //BSP,temp fix xts
 		break;
 	case OPLUS_CHG_PROP_CHARGE_FULL_DESIGN:
-		pval->intval = chip->batt_fcc * 1000;
+		/*
+		 * 设计容量必须用设计值。原实现和 CHARGE_FULL 共用一行，
+		 * 导致 charge_full == charge_full_design，框架侧算 SOH 时
+		 * 分子分母相等，永远得 100%。
+		 */
+		pval->intval = oplus_chg_intf_batt_design_capacity(chip) * 1000;
 		break;
 	case OPLUS_CHG_PROP_CHARGE_FULL:
 		pval->intval = chip->batt_fcc * 1000;
@@ -1685,7 +1717,28 @@ static int oplus_chg_intf_batt_get_prop(struct oplus_chg_mod *ocm,
 		pval->intval = chip->batt_rm;
 		break;
 	case OPLUS_CHG_PROP_BATTERY_SOH:
+		/*
+		 * chip->batt_soh 在本机上报的是 gauge 原始寄存器值（实测
+		 * 3072 左右且近似恒定），不是百分比，超出 0..100 会让
+		 * ColorOS 电池健康页显示「获取失败」。
+		 * 只在越界时用容量反推，原值正常时原样透出。
+		 */
 		pval->intval = chip->batt_soh;
+		if (pval->intval <= 0 || pval->intval > 100) {
+			int cap = oplus_chg_intf_batt_design_capacity(chip);
+			int fcc = chip->batt_fcc;
+
+			if (cap > 0 && fcc > 0)
+				pval->intval = fcc * 100 / cap;
+			else
+				pval->intval = 100;
+			if (pval->intval > 100)
+				pval->intval = 100;
+			if (pval->intval <= 0)
+				pval->intval = 100;
+			pr_info("[OPLUS_CHG][battery_soh] raw=%d -> reporting %d (fcc=%d cap=%d)\n",
+				chip->batt_soh, pval->intval, fcc, cap);
+		}
 		break;
 #ifdef CONFIG_OPLUS_CALL_MODE_SUPPORT
 	case OPLUS_CHG_PROP_CALL_MODE:
