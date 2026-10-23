@@ -105,8 +105,8 @@ jobs:
           curl -LSs https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/user.h -o include/linux/sched/user.h
           patch -p1 < 001.GKI-below-6.12-fix_sysvipc_kabi_3_4_5.patch
           echo "添加docker补丁完成"
-          KSU_TAG=$(git ls-remote --tags --refs https://github.com/KernelSU-Next/KernelSU-Next 2>/dev/null | rev | cut -d/ -f1 | rev | grep legacy | sort -V | tail -n1)
-          echo "Using KernelSU-Next tag: $KSU_TAG"
+          KSU_TAG=legacy
+          echo "Using KernelSU-Next ref: $KSU_TAG (legacy branch)"
           curl -fLSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" -o ksu_setup.sh
           bash ksu_setup.sh "$KSU_TAG"
           sed -i 's|pr_info("handle_setresuid|pr_debug("handle_setresuid|' drivers/kernelsu/hook/setuid_hook.c 2>/dev/null || true
