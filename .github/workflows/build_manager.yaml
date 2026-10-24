@@ -38,12 +38,20 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install SDK components
+      - name: Set up Android SDK (use preinstalled)
         run: |
-          sdkmanager --install "platforms;android-36" "build-tools;36.1.0" "ndk;29.0.14206865" 2>&1 | tail -5
+          set -x
+          SDK="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          echo "SDK=$SDK" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$SDK" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$SDK" >> $GITHUB_ENV
+          SDKMAN=$(find "$SDK/cmdline-tools" -name sdkmanager -type f 2>/dev/null | head -1)
+          echo "sdkmanager=$SDKMAN"
+          echo "SDKMAN=$SDKMAN" >> $GITHUB_ENV
+          yes | "$SDKMAN" --licenses > /dev/null 2>&1 || true
+          "$SDKMAN" --install "platforms;android-36" "build-tools;36.1.0" "ndk;29.0.14206865" 2>&1 | tail -8
+          ls "$SDK/ndk" 2>/dev/null || true
+          ls "$SDK/platforms" 2>/dev/null | tail -3 || true
 
       - name: Patch manager version
         run: |
