@@ -289,6 +289,8 @@ jobs:
             sed -i 's|{ EXPECTED_SIZE_KOWX712, EXPECTED_HASH_KOWX712 }, // KOWX712/KernelSU|{ EXPECTED_SIZE_KOWX712, EXPECTED_HASH_KOWX712 }, // KOWX712/KernelSU\n    { 0x365, "E1F970D85873264FA5FE6EEB4EB30543F1E50A60AF083EB67B11F67824D4BE17" }, // ColorArchive|' "$AS"
             echo "=== patched keys ==="; grep -c 'E1F970D8' "$AS"
           fi
+          # 隐藏 /proc/modules 里的 kernelsu（仅非 root 不可见）
+          python3 .github/kernel_hide_module.py kernel/module.c || echo "hide patch skipped"
           echo "compat done"
           # path_umount: KSU 补丁在 LKM 模式下没把函数体编进内核，vmlinux 链接会 undefined，这里补定义
           if ! grep -qE '^int path_umount\(' fs/namespace.c; then
