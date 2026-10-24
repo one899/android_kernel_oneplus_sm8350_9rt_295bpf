@@ -257,6 +257,8 @@ jobs:
       - name: Build kernel Image
         run: |
           cd kernel/msm-5.4
+          export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
+          which clang ld.lld || true
           make O=out CC="ccache clang" LLVM=1 -j$(nproc) Image 2>&1 | tail -25
           ls -l out/arch/arm64/boot/Image* || true
           md5sum out/arch/arm64/boot/Image 2>/dev/null || true
