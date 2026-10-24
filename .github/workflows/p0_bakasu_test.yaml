@@ -252,6 +252,11 @@ jobs:
             sed -i 's/$(eval KSU_VERSION=$(shell expr 30000 + $(KSU_GIT_VERSION) + 289))/$(eval KSU_VERSION=33355)/' "$KB" 2>/dev/null || true
             grep -n 'KSU_VERSION' "$KB" | head -5
           fi
+          # ==== BakaSU: pkg_observer 只支持 6.x（fsnotify handle_inode_event / TWA_RESUME），5.4 下移除 ====
+          if [ -f drivers/kernelsu/Kbuild ]; then
+            sed -i '/manager\/pkg_observer\.o/d' drivers/kernelsu/Kbuild
+            grep -n 'pkg_observer' drivers/kernelsu/Kbuild || echo "pkg_observer removed"
+          fi
           echo "compat done"
           # path_umount: KSU 补丁在 LKM 模式下没把函数体编进内核，vmlinux 链接会 undefined，这里补定义
           if ! grep -qE '^int path_umount\(' fs/namespace.c; then
