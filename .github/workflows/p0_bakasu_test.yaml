@@ -158,10 +158,17 @@ jobs:
           curl -LSs https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/user.h -o include/linux/sched/user.h
           patch -p1 < 001.GKI-below-6.12-fix_sysvipc_kabi_3_4_5.patch
           echo "添加docker补丁完成"
-          KSU_TAG=main
-          echo "Using BakaSU ref: $KSU_TAG (main)"
-          curl -fLSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" -o ksu_setup.sh
-          bash ksu_setup.sh "$KSU_TAG"
+          # ==== 用我们自己的 fork，pin 到和控制管理器完全相同的 commit ====
+          # 这样内核 KSU_VERSION(30000+count+700) 与管理器 versionCode 自动一致
+          KSU_FORK=https://github.com/one899/BakaSU-ColorArchive
+          KSU_SHA=2cb7146fc8d692d6fa04e7060034957b5dd2a379
+          git clone "$KSU_FORK" KernelSU
+          cd KernelSU && git checkout "$KSU_SHA" && cd ..
+          echo "KSU commit: $(cd KernelSU && git rev-parse HEAD)  count=$(cd KernelSU && git rev-list --count HEAD)"
+          ln -sf "$(realpath --relative-to=drivers "$PWD/KernelSU/kernel")" drivers/kernelsu
+          grep -q "kernelsu" drivers/Makefile || printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> drivers/Makefile
+          grep -q 'drivers/kernelsu/Kconfig' drivers/Kconfig || sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' drivers/Kconfig
+          ls -l drivers/kernelsu | head -2
           sed -i 's|pr_info("handle_setresuid|pr_debug("handle_setresuid|' drivers/kernelsu/hook/setuid_hook.c 2>/dev/null || true
           curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/syscall_hook_patches.sh" -o syscall_hook_patches.sh
           chmod +x syscall_hook_patches.sh
