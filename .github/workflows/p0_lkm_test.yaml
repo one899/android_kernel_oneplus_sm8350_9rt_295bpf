@@ -63,7 +63,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ccache-root-${{ github.ref_name }}-${{ github.sha }}
+          key: ccache-p0-${{ github.ref_name }}-${{ github.run_id }}
           restore-keys: |
             ccache-${{ github.ref_name }}-
             ccache-
@@ -77,6 +77,14 @@ jobs:
           ccache --zero-stats || true
           ccache --show-config | head -25
 
+      - name: Restore kernel out (incremental build cache)
+        uses: actions/cache@v4
+        with:
+          path: kernel/msm-5.4/out
+          key: kout-p0-${{ github.ref_name }}-${{ hashFiles('.github/workflows/p0_lkm_test.yaml') }}
+          restore-keys: |
+            kout-p0-${{ github.ref_name }}-
+            kout-p0-
       - name: Compile Kernel
         run: |
           export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
@@ -167,10 +175,7 @@ jobs:
           echo "kernel release will be: $KREL"
           # =====================================================
 
-          # ==== 5.4 compat: 5.7+ API names used by kprobe-hook path ====
-          grep -rl 'preempt_enable_no_resched_notrace' drivers/kernelsu/ 2>/dev/null | xargs -r sed -i 's/preempt_enable_no_resched_notrace/preempt_enable_no_resched/g'
-          grep -rn 'preempt_enable_no_resched' drivers/kernelsu/feature/sucompat.c | head -5
-          echo "compat done"          make -k O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
+          make O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
       - name: P0 - dump LKM info
         run: |
           set -x
@@ -189,6 +194,12 @@ jobs:
           echo "=== __versions section size ===" | tee -a p0_report.txt
           readelf -SW "$KO" | grep -E '__versions|\.modinfo' | tee -a p0_report.txt
 
+      - name: Save kernel out
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: kernel/msm-5.4/out
+          key: kout-p0-${{ github.ref_name }}-${{ hashFiles('.github/workflows/p0_lkm_test.yaml') }}
       - name: Upload LKM + report
         uses: actions/upload-artifact@v6
         with:
