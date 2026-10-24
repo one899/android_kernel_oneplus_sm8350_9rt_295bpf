@@ -134,6 +134,11 @@ jobs:
           # asm 符号（grep 找不到定义）：直接 extern 声明 + 导出
           printf '\nextern void __flush_dcache_area(void *addr, size_t len);\n#include <linux/export.h>\nEXPORT_SYMBOL(__flush_dcache_area);\n' >> mm/maccess.c
           echo "OK   __flush_dcache_area -> mm/maccess.c"
+          # current_is_single_threaded：grep 找不到定义文件，但 fork.c 里有声明，追加导出即可
+          if ! grep -q 'EXPORT_SYMBOL(current_is_single_threaded)' kernel/fork.c; then
+            printf '\n#include <linux/export.h>\nEXPORT_SYMBOL(current_is_single_threaded);\n' >> kernel/fork.c
+            echo "OK   current_is_single_threaded -> kernel/fork.c"
+          fi
           printf '\nlong copy_from_user_nofault(void *dst, const void __user *src, size_t size)\n{\n\treturn probe_user_read(dst, src, size);\n}\nlong copy_to_user_nofault(void __user *dst, const void *src, size_t size)\n{\n\treturn probe_user_write(dst, src, size);\n}\nlong strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr, long count)\n{\n\treturn strncpy_from_unsafe_user(dst, unsafe_addr, count);\n}\n#include <linux/export.h>\nEXPORT_SYMBOL(copy_from_user_nofault);\nEXPORT_SYMBOL(copy_to_user_nofault);\nEXPORT_SYMBOL(strncpy_from_user_nofault);\n' >> mm/maccess.c
           echo "OK   3x *_user_nofault -> mm/maccess.c"
           echo "=== 头文件是否被误改 ==="
