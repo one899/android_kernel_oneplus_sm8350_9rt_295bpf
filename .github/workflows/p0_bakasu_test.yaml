@@ -276,6 +276,12 @@ jobs:
             echo "=== patched manager keys ==="
             grep -n -A1 'KOWX712' "$AS" | head -6
           fi
+          # ==== 静态加入 ColorArchive 签名（不用 EXPECTED_SIZE 宏）====
+          AS=drivers/kernelsu/manager/apk_sign.c
+          if [ -f "$AS" ] && ! grep -q 'E1F970D8' "$AS"; then
+            sed -i 's|{ EXPECTED_SIZE_KOWX712, EXPECTED_HASH_KOWX712 }, // KOWX712/KernelSU|{ EXPECTED_SIZE_KOWX712, EXPECTED_HASH_KOWX712 }, // KOWX712/KernelSU\n    { 0x365, "E1F970D85873264FA5FE6EEB4EB30543F1E50A60AF083EB67B11F67824D4BE17" }, // ColorArchive|' "$AS"
+            echo "=== patched keys ==="; grep -c 'E1F970D8' "$AS"
+          fi
           echo "compat done"
           # path_umount: KSU 补丁在 LKM 模式下没把函数体编进内核，vmlinux 链接会 undefined，这里补定义
           if ! grep -qE '^int path_umount\(' fs/namespace.c; then
