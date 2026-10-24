@@ -117,7 +117,11 @@ jobs:
             if [ -z "$f" ]; then f="$(find_def "$s")"; fi
             if [ -z "$f" ] || [ ! -f "$f" ]; then echo "FAIL $s (not found)"; return 0; fi
             if grep -q "EXPORT_SYMBOL(${s})" "$f"; then echo "SKIP $s (already)"; return 0; fi
-            printf '\n#include <linux/export.h>\nEXPORT_SYMBOL(%s);\n' "$s" >> "$f"
+            if [ "$s" = "path_umount" ]; then
+              printf '\nextern int path_umount(struct path *path, int flags);\n#include <linux/export.h>\nEXPORT_SYMBOL(path_umount);\n' >> "$f"
+            else
+              printf '\n#include <linux/export.h>\nEXPORT_SYMBOL(%s);\n' "$s" >> "$f"
+            fi
             echo "OK   $s -> $f"
             return 0
           }
