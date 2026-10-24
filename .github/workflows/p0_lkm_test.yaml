@@ -89,10 +89,8 @@ jobs:
             kout-p0-
       - name: Export KSU-needed kernel symbols
         run: |
-          set -e
           cd kernel/msm-5.4
           SYMS="alloc_uid avc_ss_reset avtab_alloc avtab_destroy avtab_insert_nonunique avtab_search_node avtab_search_node_next change_pid do_mount ebitmap_get_bit ebitmap_set_bit ext4_unregister_sysfs free_uid hashtab_insert hashtab_search mntns_operations ns_get_path policydb_write put_seccomp_filter selinux_blob_sizes selinux_state selinux_status_update_policyload selnl_notify_policyload set_fs_pwd strncpy_from_unsafe_user tasklist_lock"
-          # 宏生成 / 多行定义 / 特殊符号 -> 显式文件
           fixed_file() {
             case "$1" in
               __arm64_sys_close)      echo fs/open.c ;;
@@ -107,31 +105,26 @@ jobs:
           }
           find_def() {
             s="$1"
-            # 单行定义: TYPE name(
-            f=$(grep -rlnE --include='*.c' "^[A-Za-z_][A-Za-z0-9_ \*]*[ \*]${s}\(" kernel fs mm security net drivers 2>/dev/null | head -1)
-            [ -n "$f" ] && { echo "$f"; return; }
-            # 返回类型独占一行: 行首就是 name(
-            f=$(grep -rlnE --include='*.c' "^${s}\(" kernel fs mm security net drivers 2>/dev/null | head -1)
-            [ -n "$f" ] && { echo "$f"; return; }
-            # 数据符号: TYPE name = / ;
-            f=$(grep -rlnE --include='*.c' "^[A-Za-z_][A-Za-z0-9_ \*]*[ \*]${s}[ \t]*(=|;)" kernel fs mm security 2>/dev/null | head -1)
-            [ -n "$f" ] && { echo "$f"; return; }
-            # 数据符号带属性: TYPE name __attr...
-            grep -rlnE --include='*.c' "^[A-Za-z_][A-Za-z0-9_ \*]*[ \*]${s}[ \t]+[A-Za-z_]" kernel fs mm security 2>/dev/null | head -1
+            for pat in "^[A-Za-z_][A-Za-z0-9_ \*]*[ \*]${s}\(" "^${s}\(" "^[A-Za-z_][A-Za-z0-9_ \*]*[ \*]${s}[ \t]*(=|;)" "^[A-Za-z_][A-Za-z0-9_ \*]*[ \*]${s}[ \t]+[A-Za-z_]"; do
+              f=$(grep -rlnE --include='*.c' "$pat" kernel fs mm security net drivers 2>/dev/null | head -1)
+              if [ -n "$f" ]; then echo "$f"; return 0; fi
+            done
+            return 0
           }
           export_one() {
             s="$1"
             f="$(fixed_file "$s")"
-            [ -z "$f" ] && f="$(find_def "$s")"
-            if [ -z "$f" ] || [ ! -f "$f" ]; then echo "FAIL $s (not found)"; return; fi
-            if grep -q "EXPORT_SYMBOL(${s})" "$f"; then echo "SKIP $s (already)"; return; fi
+            if [ -z "$f" ]; then f="$(find_def "$s")"; fi
+            if [ -z "$f" ] || [ ! -f "$f" ]; then echo "FAIL $s (not found)"; return 0; fi
+            if grep -q "EXPORT_SYMBOL(${s})" "$f"; then echo "SKIP $s (already)"; return 0; fi
             printf '\n#include <linux/export.h>\nEXPORT_SYMBOL(%s);\n' "$s" >> "$f"
             echo "OK   $s -> $f"
+            return 0
           }
           for s in __arm64_sys_close __arm64_sys_setns __arm64_sys_unshare __tracepoint_sys_enter; do export_one "$s"; done
           for s in $SYMS; do export_one "$s"; done
-          echo "=== 校验：头文件不应被修改 ==="
-          git status --porcelain | grep -E '\.h$' || echo "no header modified (good)"
+          echo "=== 头文件是否被误改 ==="
+          git status --porcelain | grep -E '\.h$' && echo "!! HEADER MODIFIED" || echo "no header modified (good)"
       - name: Compile Kernel
         run: |
           export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
