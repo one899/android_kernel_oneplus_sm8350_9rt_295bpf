@@ -265,6 +265,10 @@ jobs:
             sed -i 's|^kernelsu-objs += manager/manager\.o|kernelsu-objs += manager/manager.o\nkernelsu-objs += manager/pkg_observer_stub.o|' drivers/kernelsu/Kbuild
             grep -n 'pkg_observer' drivers/kernelsu/Kbuild || echo "pkg_observer removed + stub added"
           fi
+          # ==== 使用我们自签管理器的签名（ColorArchive BakaSU 管理器）====
+          export KSU_EXPECTED_SIZE=0x365
+          export KSU_EXPECTED_HASH=E1F970D85873264FA5FE6EEB4EB30543F1E50A60AF083EB67B11F67824D4BE17
+          echo "manager sig: size=$KSU_EXPECTED_SIZE hash=$KSU_EXPECTED_HASH"
           echo "compat done"
           # path_umount: KSU 补丁在 LKM 模式下没把函数体编进内核，vmlinux 链接会 undefined，这里补定义
           if ! grep -qE '^int path_umount\(' fs/namespace.c; then
