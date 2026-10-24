@@ -3,6 +3,9 @@ name: P0 - 9RT BakaSU LKM test
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-lkm:
     name: Compile BakaSU kernelsu.ko (LKM)
@@ -362,6 +365,19 @@ jobs:
         with:
           path: kernel/msm-5.4/out
           key: kout-p0-${{ github.ref_name }}-${{ github.run_id }}
+      - name: Publish KSU pin for manager build
+        if: always()
+        run: |
+          set -x
+          if [ ! -f ksu_pin.txt ]; then echo "no pin file"; exit 0; fi
+          mkdir -p .github
+          cp ksu_pin.txt .github/ksu_pin.txt
+          cat .github/ksu_pin.txt
+          git config user.name "colorarchive-ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add -f .github/ksu_pin.txt
+          git commit -m "ci: pin KSU $(cat ksu_pin.txt) (kernel build ${GITHUB_RUN_ID})" || true
+          git push origin HEAD:p0/lkm || echo "push skipped"
       - name: Upload LKM + report
         uses: actions/upload-artifact@v6
         with:
