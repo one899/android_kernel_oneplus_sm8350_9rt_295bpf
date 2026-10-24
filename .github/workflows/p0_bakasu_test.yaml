@@ -354,4 +354,4 @@ jobs:
             p0_report.txt
             kernel/msm-5.4/out/arch/arm64/boot/Image
             kernel/msm-5.4/out/arch/arm64/boot/Image.gz
-            boot-bakasu-lkm-9rt-*.img
+            boot-lkm-9rt-*.img
