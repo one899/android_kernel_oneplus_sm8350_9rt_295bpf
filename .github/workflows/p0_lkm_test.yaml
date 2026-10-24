@@ -90,7 +90,7 @@ jobs:
       - name: Export KSU-needed kernel symbols
         run: |
           cd kernel/msm-5.4
-          SYMS="alloc_uid avc_ss_reset avtab_alloc avtab_destroy avtab_insert_nonunique avtab_search_node avtab_search_node_next change_pid do_mount ebitmap_get_bit ebitmap_set_bit ext4_unregister_sysfs free_uid hashtab_insert hashtab_search mntns_operations ns_get_path policydb_write put_seccomp_filter selinux_blob_sizes selinux_state selinux_status_update_policyload selnl_notify_policyload set_fs_pwd strncpy_from_unsafe_user tasklist_lock"
+          SYMS="alloc_uid avc_ss_reset avtab_alloc avtab_destroy avtab_insert_nonunique avtab_search_node avtab_search_node_next change_pid do_mount ebitmap_get_bit ebitmap_set_bit ext4_unregister_sysfs free_uid hashtab_insert hashtab_search mntns_operations ns_get_path policydb_write put_seccomp_filter selinux_blob_sizes selinux_state selinux_status_update_policyload selnl_notify_policyload set_fs_pwd strncpy_from_unsafe_user tasklist_lock path_umount task_work_add uts_sem"
           fixed_file() {
             case "$1" in
               __arm64_sys_close)      echo fs/open.c ;;
@@ -185,6 +185,7 @@ jobs:
             -e CONFIG_CHECKPOINT_RESTORE \
             -e CONFIG_SYSVIPC \
             -e CONFIG_KPROBES \
+            -e CONFIG_FTRACE_SYSCALLS \
             -e CONFIG_TMPFS_POSIX_ACL \
             -e CONFIG_TMPFS_XATTR
           # ==========================================
