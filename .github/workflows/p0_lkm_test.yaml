@@ -156,7 +156,15 @@ jobs:
           curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/syscall_hook_patches.sh" -o syscall_hook_patches.sh
           chmod +x syscall_hook_patches.sh
           bash syscall_hook_patches.sh
-          sed -i '/ksu_handle_devpts/d' drivers/tty/pty.c
+          # KSU=m 时内核侧 CONFIG_KSU 未定义（只有 CONFIG_KSU_MODULE），
+          # 导致 KSU 内核补丁里的 path_umount 等 helper 被 #ifdef 编译掉。
+          for f in fs/namespace.c fs/internal.h; do
+            if [ -f "$f" ] && grep -q '#ifdef CONFIG_KSU\b' "$f"; then
+              sed -i 's/#ifdef CONFIG_KSU\b/#if defined(CONFIG_KSU) || defined(CONFIG_KSU_MODULE)/g' "$f"
+              echo "guard fixed: $f"
+            fi
+          done
+          grep -n 'CONFIG_KSU_MODULE' fs/namespace.c fs/internal.h 2>/dev/null | head -5 || true          sed -i '/ksu_handle_devpts/d' drivers/tty/pty.c
           sed -i 's/obj-$(CONFIG_KPROBES)/obj-y/g' kernel/Makefile
           echo "正在用命令重构并清空报错的 selinux_hide.c..."
           cat << 'EOF' > drivers/kernelsu/feature/selinux_hide.c
