@@ -257,8 +257,16 @@ jobs:
       - name: Build kernel Image
         run: |
           export PATH="$GITHUB_WORKSPACE/compiler/clang-bin/bin:$PATH"
+          export ARCH="arm64"
+          export SUBARCH="arm64"
+          export CROSS_COMPILE="aarch64-linux-gnu-"
+          export CROSS_COMPILE_ARM32="arm-linux-androideabi-"
+          export CLANG_TRIPLE="aarch64-linux-gnu-"
+          export CLANG_PATH="$GITHUB_WORKSPACE/compiler/clang-bin/bin"
+          export CCACHE_DIR="$HOME/.ccache"
           cd kernel/msm-5.4
-          which clang ld.lld || true
+          which clang ld.lld
+          echo "ARCH=$ARCH"
           make O=out CC="ccache clang" LLVM=1 -j$(nproc) 2>&1 | tail -25
           ls -l out/arch/arm64/boot/Image* || true
           md5sum out/arch/arm64/boot/Image 2>/dev/null || true
