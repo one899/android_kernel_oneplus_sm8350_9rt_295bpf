@@ -73,11 +73,40 @@ jobs:
             -PKEY_PASSWORD="$KEY_PASSWORD" 2>&1 | tail -50
           ls -l app/build/outputs/apk/release/ 2>/dev/null || true
 
+      - name: Inject libksud.so + sign with our keystore
+        env:
+          KS_PASS: one899ksu
+          KS_ALIAS: ksu
+        run: |
+          set -x
+          BT=$(ls -d "$ANDROID_HOME/build-tools/"*/ | sort -V | tail -1)
+          echo "build-tools: $BT"
+          APK=$(find bakasu -name '*-arm64-v8a-release.apk' | head -1)
+          echo "base apk: $APK"
+          # 1) 从官方 APK 取 libksud.so（BakaSU 官方 CI 用 cargo 编出来塞进去的）
+          curl -sSL -o official.apk "https://github.com/Baka-SU/BakaSU/releases/download/v4.2.0-rc3/ReSukiSU_v4.2.0-rc3_35171-arm64-v8a-release.apk"
+          mkdir -p libs && unzip -o -q official.apk 'lib/*' -d libs
+          ls -l libs/lib/*/ | head -20
+          # 2) 注入到我们的 APK
+          rm -rf workapk && mkdir workapk && cd workapk
+          unzip -q "../$APK"
+          mkdir -p lib/arm64-v8a
+          cp -f ../libs/lib/arm64-v8a/libksud.so lib/arm64-v8a/libksud.so
+          ls -l lib/arm64-v8a/libksud.so
+          rm -rf META-INF
+          zip -qr ../injected.apk .
+          cd ..
+          ls -l injected.apk
+          # 3) zipalign + 用我们的 keystore 签名
+          "${BT}zipalign" -f -p 4 injected.apk aligned.apk
+          "${BT}apksigner" sign --ks /tmp/ksu.jks --ks-pass "pass:$KS_PASS" --key-pass "pass:$KS_PASS" --ks-key-alias "$KS_ALIAS" --out bakasu-manager-signed.apk aligned.apk
+          "${BT}apksigner" verify --print-certs bakasu-manager-signed.apk | head -10
+          ls -l bakasu-manager-signed.apk
       - name: Compute signature size/hash
         run: |
           set -x
-          find bakasu -name '*.apk' | head -5
-          for f in $(find bakasu -name '*.apk'); do
+          ls -l bakasu-manager-signed.apk || true
+          for f in bakasu-manager-signed.apk; do
             echo "=== $f"
             python3 .github/manager/apk_sig_hash.py "$f" || true
           done
@@ -86,4 +115,4 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: bakasu-manager-custom
-          path: bakasu/**/*.apk
+          path: bakasu-manager-signed.apk
