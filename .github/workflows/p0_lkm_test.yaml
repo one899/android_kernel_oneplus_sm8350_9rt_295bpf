@@ -268,20 +268,29 @@ jobs:
           llvm-objcopy -O binary -R .note -R .note.gnu.build-id -R .comment -S out/vmlinux out/arch/arm64/boot/Image
           ls -l out/arch/arm64/boot/Image
           md5sum out/arch/arm64/boot/Image
-      - name: Pack boot image
+      - name: Pack LKM boot (kernel + ksuinit + kernelsu.ko)
         if: always()
         run: |
-          if [ ! -f kernel/msm-5.4/out/arch/arm64/boot/Image ]; then echo "no Image built, skip packing"; exit 0; fi
+          set -x
+          IMG=kernel/msm-5.4/out/arch/arm64/boot/Image
+          KO=$(find . -name 'kernelsu.ko' | head -1)
+          if [ ! -f "$IMG" ] || [ -z "$KO" ]; then echo "missing Image or kernelsu.ko, skip pack"; exit 0; fi
           mkdir -p /tmp/bp && cd /tmp/bp
           wget -q https://raw.githubusercontent.com/miaizhe/magiskboot-linux/refs/heads/main/x86_64/magiskboot
           chmod +x magiskboot
-          curl -fL "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/boot_a.img" -o boot.img
-          ./magiskboot unpack boot.img
-          cp "$GITHUB_WORKSPACE/kernel/msm-5.4/out/arch/arm64/boot/Image" kernel
-          ./magiskboot repack boot.img
-          ls -l new-boot.img
+          curl -fL "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/boot_a.img" -o base.img
+          curl -fL "https://github.com/tiann/KernelSU/releases/download/v3.3.1/ksuinit-aarch64" -o ksuinit
+          chmod +x ksuinit
+          ./magiskboot unpack base.img
+          cp "$GITHUB_WORKSPACE/$IMG" kernel
+          ./magiskboot cpio ramdisk.cpio "rm init" || true
+          ./magiskboot cpio ramdisk.cpio "add 0750 init ksuinit"
+          ./magiskboot cpio ramdisk.cpio "add 0644 kernelsu.ko $GITHUB_WORKSPACE/$KO"
+          echo "=== ramdisk entries ==="
+          ./magiskboot cpio ramdisk.cpio "ls" 2>/dev/null | grep -E "(init$|kernelsu)" || true
+          ./magiskboot repack base.img new-boot.img
           md5sum new-boot.img
-          cp new-boot.img "$GITHUB_WORKSPACE/boot-lkm-9rt-${{ env.BUILD_DATE }}.img"
+          cp new-boot.img "$GITHUB_WORKSPACE/boot-lkm-9rt-${BUILD_DATE}.img"
           cd "$GITHUB_WORKSPACE" && ls -l boot-lkm-9rt-*.img
       - name: P0 - dump LKM info
         run: |
