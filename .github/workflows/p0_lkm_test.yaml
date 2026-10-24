@@ -256,8 +256,8 @@ jobs:
           make -k O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
       - name: Build kernel Image
         run: |
+          export PATH="$GITHUB_WORKSPACE/compiler/clang-bin/bin:$PATH"
           cd kernel/msm-5.4
-          export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
           which clang ld.lld || true
           make O=out CC="ccache clang" LLVM=1 -j$(nproc) Image 2>&1 | tail -25
           ls -l out/arch/arm64/boot/Image* || true
