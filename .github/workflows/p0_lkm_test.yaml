@@ -244,6 +244,14 @@ jobs:
           grep -rl 'preempt_enable_no_resched_notrace' drivers/kernelsu/ 2>/dev/null | xargs -r sed -i 's/preempt_enable_no_resched_notrace()/preempt_enable()/g'
           echo "--- compat: 剩余 _notrace 调用数: $(grep -rc 'preempt_enable_no_resched_notrace' drivers/kernelsu/ 2>/dev/null | grep -v ':0' | wc -l)"
           grep -rn 'preempt_enable()' drivers/kernelsu/feature/sucompat.c | head -3
+          # ==== 对齐 KSU 版本号到管理器 v3.4.2 (33355) ====
+          # Kbuild 用 commit 计数算版本（30000+n+289），legacy 分支算出来是 33315，
+          # 与管理器 33355 不一致会提示版本不匹配，这里直接固定。
+          KB=drivers/kernelsu/Kbuild
+          if [ -f "$KB" ]; then
+            sed -i 's/$(eval KSU_VERSION=$(shell expr 30000 + $(KSU_GIT_VERSION) + 289))/$(eval KSU_VERSION=33355)/' "$KB" 2>/dev/null || true
+            grep -n 'KSU_VERSION' "$KB" | head -5
+          fi
           echo "compat done"
           # path_umount: KSU 补丁在 LKM 模式下没把函数体编进内核，vmlinux 链接会 undefined，这里补定义
           if ! grep -qE '^int path_umount\(' fs/namespace.c; then
