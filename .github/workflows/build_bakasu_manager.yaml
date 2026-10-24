@@ -1,0 +1,82 @@
+name: Build custom BakaSU Manager
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: 'manager versionCode override'
+        required: false
+        default: '35337'
+
+jobs:
+  build:
+    name: Build BakaSU manager APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout build assets
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            .github/manager
+
+      - name: Checkout BakaSU (our fork)
+        uses: actions/checkout@v6
+        with:
+          repository: one899/BakaSU-ColorArchive
+          ref: main
+          path: bakasu
+          fetch-depth: 1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK (use preinstalled)
+        run: |
+          set -x
+          SDK="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$SDK" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$SDK" >> $GITHUB_ENV
+          SDKMAN=$(find "$SDK/cmdline-tools" -name sdkmanager -type f 2>/dev/null | head -1)
+          yes | "$SDKMAN" --licenses > /dev/null 2>&1 || true
+          "$SDKMAN" --install "platforms;android-36" "build-tools;36.1.0" "ndk;29.0.14206865" 2>&1 | tail -6
+
+      - name: Patch manager version
+        run: |
+          cd bakasu
+          grep -n 'managerVersionCode' manager/build.gradle.kts
+          sed -i "s/extra\[\"managerVersionCode\"\] = 30000 + getGitCommitCount() + 700/extra[\"managerVersionCode\"] = ${{ inputs.version_code }}/" manager/build.gradle.kts
+          grep -n 'managerVersionCode' manager/build.gradle.kts
+
+      - name: Restore keystore
+        run: |
+          base64 -d .github/manager/ksu-release.jks.b64 > /tmp/ksu.jks
+          keytool -list -keystore /tmp/ksu.jks -storepass one899ksu 2>&1 | head -4
+
+      - name: Build release APK
+        env:
+          KEYSTORE_FILE: /tmp/ksu.jks
+          KEYSTORE_PASSWORD: one899ksu
+          KEY_ALIAS: ksu
+          KEY_PASSWORD: one899ksu
+        run: |
+          cd bakasu
+          if [ -f manager/gradlew ]; then cd manager; chmod +x gradlew; ./gradlew --no-daemon :app:assembleRelease 2>&1 | tail -50; else ls -la; find . -name gradlew | head; fi
+
+      - name: Compute signature size/hash
+        run: |
+          set -x
+          find bakasu -name '*.apk' | head -5
+          for f in $(find bakasu -name '*.apk'); do
+            echo "=== $f"
+            python3 .github/manager/apk_sig_hash.py "$f" || true
+          done
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: bakasu-manager-custom
+          path: bakasu/**/*.apk
