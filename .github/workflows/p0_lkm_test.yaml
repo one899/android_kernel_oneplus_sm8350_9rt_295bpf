@@ -167,7 +167,10 @@ jobs:
           echo "kernel release will be: $KREL"
           # =====================================================
 
-          make O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
+          # ==== 5.4 compat: 5.7+ API names used by kprobe-hook path ====
+          grep -rl 'preempt_enable_no_resched_notrace' drivers/kernelsu/ 2>/dev/null | xargs -r sed -i 's/preempt_enable_no_resched_notrace/preempt_enable_no_resched/g'
+          grep -rn 'preempt_enable_no_resched' drivers/kernelsu/feature/sucompat.c | head -5
+          echo "compat done"          make -k O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
       - name: P0 - dump LKM info
         run: |
           set -x
