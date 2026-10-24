@@ -64,7 +64,14 @@ jobs:
           KEY_PASSWORD: one899ksu
         run: |
           cd bakasu
-          if [ -f manager/gradlew ]; then cd manager; chmod +x gradlew; ./gradlew --no-daemon :app:assembleRelease 2>&1 | tail -50; else ls -la; find . -name gradlew | head; fi
+          cd manager
+          chmod +x gradlew
+          ./gradlew --no-daemon :app:assembleRelease \
+            -PKEYSTORE_FILE="$KEYSTORE_FILE" \
+            -PKEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
+            -PKEY_ALIAS="$KEY_ALIAS" \
+            -PKEY_PASSWORD="$KEY_PASSWORD" 2>&1 | tail -50
+          ls -l app/build/outputs/apk/release/ 2>/dev/null || true
 
       - name: Compute signature size/hash
         run: |
