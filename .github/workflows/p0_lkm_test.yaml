@@ -60,7 +60,7 @@ jobs:
           patch -p1 < rekernel_extra.patch || true
           
       - name: Restore ccache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/.ccache
           key: ccache-p0-${{ github.ref_name }}-${{ github.run_id }}
@@ -71,7 +71,8 @@ jobs:
 
       - name: Configure ccache
         run: |
-          ccache --max-size=3G
+          export CCACHE_DIR="$HOME/.ccache"
+          ccache --max-size=5G
           ccache --set-config=compression=true
           ccache --set-config=compiler_check=content
           ccache --set-config=sloppiness=time_macros,include_file_mtime,include_file_ctime,file_stat_matches
@@ -79,10 +80,10 @@ jobs:
           ccache --show-config | head -25
 
       - name: Restore kernel out (incremental build cache)
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: kernel/msm-5.4/out
-          key: kout-p0-${{ github.ref_name }}-${{ hashFiles('.github/workflows/p0_lkm_test.yaml') }}
+          key: kout-p0-${{ github.ref_name }}-${{ github.run_id }}
           restore-keys: |
             kout-p0-${{ github.ref_name }}-
             kout-p0-
@@ -205,12 +206,19 @@ jobs:
           echo "=== __versions section size ===" | tee -a p0_report.txt
           readelf -SW "$KO" | grep -E '__versions|\.modinfo' | tee -a p0_report.txt
 
+      - name: Save ccache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.ccache
+          key: ccache-p0-${{ github.ref_name }}-${{ github.run_id }}
+
       - name: Save kernel out
         if: always()
         uses: actions/cache/save@v4
         with:
           path: kernel/msm-5.4/out
-          key: kout-p0-${{ github.ref_name }}-${{ hashFiles('.github/workflows/p0_lkm_test.yaml') }}
+          key: kout-p0-${{ github.ref_name }}-${{ github.run_id }}
       - name: Upload LKM + report
         uses: actions/upload-artifact@v6
         with:
