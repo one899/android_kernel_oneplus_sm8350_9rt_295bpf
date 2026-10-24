@@ -262,7 +262,7 @@ jobs:
           ls -l out/vmlinux
           mkdir -p out/arch/arm64/boot
           # arm64 的 Image 就是 vmlinux 的 raw 二进制（kbuild 内部也是 objcopy）
-          llvm-objcopy -O binary out/vmlinux out/arch/arm64/boot/Image
+          llvm-objcopy -O binary -R .note -R .note.gnu.build-id -R .comment -S out/vmlinux out/arch/arm64/boot/Image
           ls -l out/arch/arm64/boot/Image
           md5sum out/arch/arm64/boot/Image
       - name: Pack boot image
