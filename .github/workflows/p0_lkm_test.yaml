@@ -177,11 +177,14 @@ jobs:
           # =====================================================
 
           # ==== 5.4 compat: 5.7+ API names used by kprobe-hook path ====
-          # KSU kprobe 路径缺 <linux/preempt.h>，补 include（符号本来就有，不要改名）
+          # 5.4 的 preempt.h 在 #ifdef MODULE 下 #undef 了 preempt_enable_no_resched* 系列
+          # ("Modules have no business playing preemption tricks")，改用 preempt_enable()
           for f in $(grep -rl 'preempt_enable_no_resched' drivers/kernelsu/ 2>/dev/null); do
             grep -q 'linux/preempt.h' "$f" || sed -i '1i #include <linux/preempt.h>' "$f"
           done
-          grep -rn 'linux/preempt.h' drivers/kernelsu/ | head -6
+          grep -rl 'preempt_enable_no_resched_notrace' drivers/kernelsu/ 2>/dev/null | xargs -r sed -i 's/preempt_enable_no_resched_notrace()/preempt_enable()/g'
+          echo "--- compat: 剩余 _notrace 调用数: $(grep -rc 'preempt_enable_no_resched_notrace' drivers/kernelsu/ 2>/dev/null | grep -v ':0' | wc -l)"
+          grep -rn 'preempt_enable()' drivers/kernelsu/feature/sucompat.c | head -3
           echo "compat done"
           make -k O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
       - name: P0 - dump LKM info
