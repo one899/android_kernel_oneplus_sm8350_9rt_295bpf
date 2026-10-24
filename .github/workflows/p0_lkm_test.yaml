@@ -245,7 +245,29 @@ jobs:
           echo "--- compat: 剩余 _notrace 调用数: $(grep -rc 'preempt_enable_no_resched_notrace' drivers/kernelsu/ 2>/dev/null | grep -v ':0' | wc -l)"
           grep -rn 'preempt_enable()' drivers/kernelsu/feature/sucompat.c | head -3
           echo "compat done"
-          make -k O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
+          # path_umount: KSU 补丁在 LKM 模式下没有把函数体编进内核（vmlinux 链接报 undefined）
+          # 这里补一个定义，实现同 backslashxx/KernelSU#5，只用 namespace.c 内部符号
+          if ! grep -qE '^int path_umount\(' fs/namespace.c; then
+            cat >> fs/namespace.c << 'KSU_PU_EOF'
+
+int path_umount(struct path *path, int flags)
+{
+	struct mount *mnt = real_mount(path->mnt);
+
+	if (!check_mnt(mnt))
+		return -EINVAL;
+	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
+		return -EINVAL;
+	if (!ns_capable(mnt->mnt_ns->user_ns, CAP_SYS_ADMIN))
+		return -EPERM;
+	return do_umount(mnt, flags);
+}
+KSU_PU_EOF
+            echo "=== added fallback path_umount definition ==="
+          else
+            echo "=== path_umount already defined in namespace.c ==="
+          fi
+          grep -n 'int path_umount' fs/namespace.c | head -5 || true          make -k O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
       - name: Pack boot image
         if: always()
         run: |
