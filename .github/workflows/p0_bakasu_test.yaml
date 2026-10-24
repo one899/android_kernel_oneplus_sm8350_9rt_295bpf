@@ -90,7 +90,7 @@ jobs:
       - name: Export KSU-needed kernel symbols
         run: |
           cd kernel/msm-5.4
-          SYMS="alloc_uid avc_ss_reset avtab_alloc avtab_destroy avtab_insert_nonunique avtab_search_node avtab_search_node_next change_pid do_mount ebitmap_get_bit ebitmap_set_bit ext4_unregister_sysfs free_uid hashtab_insert hashtab_search mntns_operations ns_get_path policydb_write put_seccomp_filter selinux_blob_sizes selinux_state selinux_status_update_policyload selnl_notify_policyload set_fs_pwd strncpy_from_unsafe_user tasklist_lock path_umount task_work_add uts_sem"
+          SYMS="alloc_uid avc_ss_reset avtab_alloc avtab_destroy avtab_insert_nonunique avtab_search_node avtab_search_node_next change_pid do_mount ebitmap_get_bit ebitmap_set_bit ext4_unregister_sysfs free_uid hashtab_insert hashtab_search mntns_operations ns_get_path policydb_write put_seccomp_filter selinux_blob_sizes selinux_state selinux_status_update_policyload selnl_notify_policyload set_fs_pwd strncpy_from_unsafe_user tasklist_lock path_umount task_work_add uts_sem __arm64_sys_umount copy_from_user_nofault copy_to_user_nofault strncpy_from_user_nofault do_syslog init_mm install_session_keyring_to_cred kallsyms_lookup_name kallsyms_lookup ksys_unshare policydb_destroy policydb_load_isids policydb_read selinuxfs_mount __set_fixmap"
           fixed_file() {
             case "$1" in
               __arm64_sys_close)      echo fs/open.c ;;
@@ -127,6 +127,9 @@ jobs:
           }
           for s in __arm64_sys_close __arm64_sys_setns __arm64_sys_unshare __tracepoint_sys_enter; do export_one "$s"; done
           for s in $SYMS; do export_one "$s"; done
+          # asm 符号（grep 找不到定义）：直接 extern 声明 + 导出
+          printf '\nextern void __flush_dcache_area(void *addr, size_t len);\n#include <linux/export.h>\nEXPORT_SYMBOL(__flush_dcache_area);\n' >> mm/maccess.c
+          echo "OK   __flush_dcache_area -> mm/maccess.c"
           echo "=== 头文件是否被误改 ==="
           git status --porcelain | grep -E '\.h$' && echo "!! HEADER MODIFIED" || echo "no header modified (good)"
       - name: Compile Kernel
@@ -255,7 +258,9 @@ jobs:
           # ==== BakaSU: pkg_observer 只支持 6.x（fsnotify handle_inode_event / TWA_RESUME），5.4 下移除 ====
           if [ -f drivers/kernelsu/Kbuild ]; then
             sed -i '/manager\/pkg_observer\.o/d' drivers/kernelsu/Kbuild
-            grep -n 'pkg_observer' drivers/kernelsu/Kbuild || echo "pkg_observer removed"
+            printf '#include <linux/kernel.h>\nextern int ksu_observer_init(void);\nextern void ksu_observer_exit(void);\nint ksu_observer_init(void) { return 0; }\nvoid ksu_observer_exit(void) { }\n' > drivers/kernelsu/manager/pkg_observer_stub.c
+            sed -i 's|^kernelsu-objs += manager/manager\.o|kernelsu-objs += manager/manager.o\nkernelsu-objs += manager/pkg_observer_stub.o|' drivers/kernelsu/Kbuild
+            grep -n 'pkg_observer' drivers/kernelsu/Kbuild || echo "pkg_observer removed + stub added"
           fi
           echo "compat done"
           # path_umount: KSU 补丁在 LKM 模式下没把函数体编进内核，vmlinux 链接会 undefined，这里补定义
