@@ -256,20 +256,15 @@ jobs:
           make -k O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
       - name: Build kernel Image
         run: |
+          cd kernel/msm-5.4
           export PATH="$GITHUB_WORKSPACE/compiler/clang-bin/bin:$PATH"
           export ARCH="arm64"
-          export SUBARCH="arm64"
-          export CROSS_COMPILE="aarch64-linux-gnu-"
-          export CROSS_COMPILE_ARM32="arm-linux-androideabi-"
-          export CLANG_TRIPLE="aarch64-linux-gnu-"
-          export CLANG_PATH="$GITHUB_WORKSPACE/compiler/clang-bin/bin"
-          export CCACHE_DIR="$HOME/.ccache"
-          cd kernel/msm-5.4
-          which clang ld.lld
-          echo "ARCH=$ARCH"
-          make O=out CC="ccache clang" LLVM=1 -j$(nproc) 2>&1 | tail -25
-          ls -l out/arch/arm64/boot/Image* || true
-          md5sum out/arch/arm64/boot/Image 2>/dev/null || true
+          ls -l out/vmlinux
+          mkdir -p out/arch/arm64/boot
+          # arm64 的 Image 就是 vmlinux 的 raw 二进制（kbuild 内部也是 objcopy）
+          llvm-objcopy -O binary out/vmlinux out/arch/arm64/boot/Image
+          ls -l out/arch/arm64/boot/Image
+          md5sum out/arch/arm64/boot/Image
       - name: Pack boot image
         if: always()
         run: |
