@@ -6,22 +6,30 @@ MODNAME = "kernelsu"
 path = sys.argv[1] if len(sys.argv) > 1 else "kernel/module.c"
 src = open(path, encoding="utf-8", errors="surrogateescape").read()
 
-needle = "static int m_show(struct seq_file *m, void *p)\n{\n"
-marker = "capable(CAP_SYS_ADMIN)"
-
-if marker in src and MODNAME in src.split("m_show")[1][:800]:
+if 'strcmp(mod->name, "%s")' % MODNAME in src:
     print("already patched, skip")
     sys.exit(0)
 
-if needle not in src:
-    print("!! m_show signature not found - kernel source differs")
+func = "static int m_show(struct seq_file *m, void *p)\n{\n"
+pos = src.find(func)
+if pos < 0:
+    print("!! m_show not found - kernel source differs")
+    sys.exit(0)
+
+# 在 m_show 函数体内找到 mod 的声明语句，插在它后面
+body_start = pos + len(func)
+decl = "\tstruct module *mod = list_entry(p, struct module, list);\n"
+dpos = src.find(decl, body_start, body_start + 400)
+if dpos < 0:
+    print("!! mod declaration not found in m_show")
     sys.exit(0)
 
 inject = (
-    '\t/* hidden module: 普通进程看不到 */\n'
+    '\t/* hidden: 非特权进程看不到 */\n'
     '\tif (!capable(CAP_SYS_ADMIN) && strcmp(mod->name, "%s") == 0)\n'
     '\t\treturn 0;\n' % MODNAME
 )
-src = src.replace(needle, needle + inject, 1)
+ins = dpos + len(decl)
+src = src[:ins] + inject + src[ins:]
 open(path, "w", encoding="utf-8", errors="surrogateescape").write(src)
-print("patched m_show in", path)
+print("patched m_show (after mod decl)")
