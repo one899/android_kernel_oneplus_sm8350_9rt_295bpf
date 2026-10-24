@@ -254,6 +254,12 @@ jobs:
           fi
           grep -n 'int path_umount' fs/namespace.c | head -3 || true
           make -k O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
+      - name: Build kernel Image
+        run: |
+          cd kernel/msm-5.4
+          make O=out CC="ccache clang" LLVM=1 -j$(nproc) Image 2>&1 | tail -25
+          ls -l out/arch/arm64/boot/Image* || true
+          md5sum out/arch/arm64/boot/Image 2>/dev/null || true
       - name: Pack boot image
         if: always()
         run: |
