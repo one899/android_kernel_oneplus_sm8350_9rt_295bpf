@@ -269,6 +269,13 @@ jobs:
           echo "KSU_EXPECTED_SIZE=0x365" >> $GITHUB_ENV
           echo "KSU_EXPECTED_HASH=E1F970D85873264FA5FE6EEB4EB30543F1E50A60AF083EB67B11F67824D4BE17" >> $GITHUB_ENV
           echo "manager sig (custom slot) queued for make"
+          # ==== 静态加入 ColorArchive 管理器签名（不走 EXPECTED_SIZE 宏，避免影响其它管理器）====
+          AS=drivers/kernelsu/manager/apk_sign.c
+          if [ -f "$AS" ] && ! grep -q 'E1F970D8' "$AS"; then
+            sed -i 's|{ EXPECTED_SIZE_KOWX712, EXPECTED_HASH_KOWX712 }, // KOWX712/KernelSU|{ EXPECTED_SIZE_KOWX712, EXPECTED_HASH_KOWX712 }, // KOWX712/KernelSU\n    { 0x365, "E1F970D85873264FA5FE6EEB4EB30543F1E50A60AF083EB67B11F67824D4BE17" }, // ColorArchive|' "$AS"
+            echo "=== patched manager keys ==="
+            grep -n -A1 'KOWX712' "$AS" | head -6
+          fi
           echo "compat done"
           # path_umount: KSU 补丁在 LKM 模式下没把函数体编进内核，vmlinux 链接会 undefined，这里补定义
           if ! grep -qE '^int path_umount\(' fs/namespace.c; then
@@ -278,7 +285,7 @@ jobs:
             echo '=== path_umount already defined ==='
           fi
           grep -n 'int path_umount' fs/namespace.c | head -3 || true
-          make -k O=out CC="ccache clang" LLVM=1 KSU_EXPECTED_SIZE=0x365 KSU_EXPECTED_HASH=E1F970D85873264FA5FE6EEB4EB30543F1E50A60AF083EB67B11F67824D4BE17 -j$(nproc) modules
+          make -k O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
           # ==== 同一次构建顺手产出 Image（arm64: vmlinux 的 raw 二进制，参数与 kbuild 一致）====
           export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
           mkdir -p out/arch/arm64/boot
