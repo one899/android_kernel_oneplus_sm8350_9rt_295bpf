@@ -87,15 +87,12 @@ jobs:
           curl -sSL -o official.apk "https://github.com/Baka-SU/BakaSU/releases/download/v4.2.0-rc3/ReSukiSU_v4.2.0-rc3_35171-arm64-v8a-release.apk"
           mkdir -p libs && unzip -o -q official.apk 'lib/*' -d libs
           ls -l libs/lib/*/ | head -20
-          # 2) 注入到我们的 APK
-          rm -rf workapk && mkdir workapk && cd workapk
-          unzip -q "../$APK"
+          # 2) 注入 libksud.so —— 只追加条目，不重打整包（否则 resources.arsc 被压缩，R+ 拒装）
+          cp -f "$APK" injected.apk
           mkdir -p lib/arm64-v8a
-          cp -f ../libs/lib/arm64-v8a/libksud.so lib/arm64-v8a/libksud.so
-          ls -l lib/arm64-v8a/libksud.so
-          rm -rf META-INF
-          zip -qr ../injected.apk .
-          cd ..
+          cp -f libs/lib/arm64-v8a/libksud.so lib/arm64-v8a/libksud.so
+          zip -u -0 injected.apk lib/arm64-v8a/libksud.so
+          unzip -l injected.apk | grep -E 'libksud|resources.arsc'
           ls -l injected.apk
           # 3) zipalign + 用我们的 keystore 签名
           "${BT}zipalign" -f -p 4 injected.apk aligned.apk
