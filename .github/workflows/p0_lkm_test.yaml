@@ -242,6 +242,11 @@ jobs:
           cat und.txt | tee -a p0_report.txt
           echo "=== DEFINED FUNCS (first 20) ===" | tee -a p0_report.txt
           readelf -sW "$KO" | awk '$7!="UND" && $8!="" && $4=="FUNC" {print $8}' | sort -u | head -20 | tee -a p0_report.txt
+          echo "=== KERNEL IMAGE ===" | tee -a p0_report.txt
+          ls -l out/arch/arm64/boot/Image* 2>&1 | tee -a p0_report.txt
+          if [ -f out/arch/arm64/boot/Image ]; then
+            echo "Image md5: $(md5sum out/arch/arm64/boot/Image)" | tee -a p0_report.txt
+          fi
           echo "=== __versions section size ===" | tee -a p0_report.txt
           readelf -SW "$KO" | grep -E '__versions|\.modinfo' | tee -a p0_report.txt
 
@@ -265,3 +270,5 @@ jobs:
           path: |
             **/kernelsu.ko
             p0_report.txt
+            kernel/msm-5.4/out/arch/arm64/boot/Image
+            kernel/msm-5.4/out/arch/arm64/boot/Image.gz
