@@ -253,9 +253,9 @@ jobs:
             grep -n 'KSU_VERSION' "$KB" | head -5
           fi
           # ==== 使用我们自签管理器的签名（ColorArchive 管理器）====
-          export KSU_NEXT_MANAGER_SIZE=0x365
-          export KSU_NEXT_MANAGER_HASH=E1F970D85873264FA5FE6EEB4EB30543F1E50A60AF083EB67B11F67824D4BE17
-          echo "manager sig: size=$KSU_NEXT_MANAGER_SIZE hash=$KSU_NEXT_MANAGER_HASH"
+          echo "KSU_NEXT_MANAGER_SIZE=0x365" >> $GITHUB_ENV
+          echo "KSU_NEXT_MANAGER_HASH=E1F970D85873264FA5FE6EEB4EB30543F1E50A60AF083EB67B11F67824D4BE17" >> $GITHUB_ENV
+          echo "manager sig queued for make"
           echo "compat done"
           # path_umount: KSU 补丁在 LKM 模式下没把函数体编进内核，vmlinux 链接会 undefined，这里补定义
           if ! grep -qE '^int path_umount\(' fs/namespace.c; then
