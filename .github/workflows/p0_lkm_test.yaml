@@ -224,11 +224,11 @@ jobs:
           # vendor module mismatch and nothing loads -> boot hang. Keep it
           # space free; the guard below aborts the build if it ever is not.
           KREL_DATE=$(date +%y.%m.%d)
-          KREL="5.4.295-qgki-ColorArchive-Ultra-${KREL_DATE}"
+          KREL="5.4.295-qgki-ColorArchive-Ultra-lkm"
           case "$KREL" in
             *" "*) echo "FATAL: kernel release contains a space: $KREL"; exit 1 ;;
           esac
-          printf '#!/bin/sh\necho "%s"\n' "-qgki-ColorArchive-Ultra-${KREL_DATE}" > scripts/setlocalversion
+          printf '#!/bin/sh\necho "%s"\n' "-qgki-ColorArchive-Ultra-lkm" > scripts/setlocalversion
           chmod +x scripts/setlocalversion
           ./scripts/config --file out/.config --set-str LOCALVERSION ""
           ./scripts/config --file out/.config -d LOCALVERSION_AUTO
@@ -259,7 +259,7 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/compiler/clang-bin/bin:$PATH"
           cd kernel/msm-5.4
           which clang ld.lld || true
-          make O=out CC="ccache clang" LLVM=1 -j$(nproc) Image 2>&1 | tail -25
+          make O=out CC="ccache clang" LLVM=1 -j$(nproc) 2>&1 | tail -25
           ls -l out/arch/arm64/boot/Image* || true
           md5sum out/arch/arm64/boot/Image 2>/dev/null || true
       - name: Pack boot image
