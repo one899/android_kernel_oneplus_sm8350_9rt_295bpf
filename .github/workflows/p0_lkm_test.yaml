@@ -254,14 +254,9 @@ jobs:
           fi
           grep -n 'int path_umount' fs/namespace.c | head -3 || true
           make -k O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
-      - name: Build kernel Image
-        run: |
-          cd kernel/msm-5.4
-          export PATH="$GITHUB_WORKSPACE/compiler/clang-bin/bin:$PATH"
-          export ARCH="arm64"
-          ls -l out/vmlinux
+          # ==== 同一次构建顺手产出 Image（arm64: vmlinux 的 raw 二进制，参数与 kbuild 一致）====
+          export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
           mkdir -p out/arch/arm64/boot
-          # arm64 的 Image 就是 vmlinux 的 raw 二进制（kbuild 内部也是 objcopy）
           llvm-objcopy -O binary -R .note -R .note.gnu.build-id -R .comment -S out/vmlinux out/arch/arm64/boot/Image
           ls -l out/arch/arm64/boot/Image
           md5sum out/arch/arm64/boot/Image
