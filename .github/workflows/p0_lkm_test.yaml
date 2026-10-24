@@ -164,7 +164,14 @@ jobs:
               echo "guard fixed: $f"
             fi
           done
-          grep -n 'CONFIG_KSU_MODULE' fs/namespace.c fs/internal.h 2>/dev/null | head -5 || true          sed -i '/ksu_handle_devpts/d' drivers/tty/pty.c
+          grep -n 'CONFIG_KSU_MODULE' fs/namespace.c fs/internal.h 2>/dev/null | head -5 || true          # KSU=m 时内核侧 CONFIG_KSU 未定义（只有 CONFIG_KSU_MODULE），补丁里的 path_umount 会被编译掉
+          for f in fs/namespace.c fs/internal.h; do
+            if [ -f "$f" ] && grep -q '#ifdef CONFIG_KSU\b' "$f"; then
+              sed -i 's/#ifdef CONFIG_KSU\b/#if defined(CONFIG_KSU) || defined(CONFIG_KSU_MODULE)/g' "$f"
+              echo "guard fixed: $f"
+            fi
+          done
+          sed -i '/ksu_handle_devpts/d' drivers/tty/pty.c
           sed -i 's/obj-$(CONFIG_KPROBES)/obj-y/g' kernel/Makefile
           echo "正在用命令重构并清空报错的 selinux_hide.c..."
           cat << 'EOF' > drivers/kernelsu/feature/selinux_hide.c
@@ -235,6 +242,21 @@ jobs:
           grep -rn 'preempt_enable()' drivers/kernelsu/feature/sucompat.c | head -3
           echo "compat done"
           make -k O=out CC="ccache clang" LLVM=1 -j$(nproc) modules
+      - name: Pack boot image
+        if: always()
+        run: |
+          if [ ! -f kernel/msm-5.4/out/arch/arm64/boot/Image ]; then echo "no Image built, skip packing"; exit 0; fi
+          mkdir -p /tmp/bp && cd /tmp/bp
+          wget -q https://raw.githubusercontent.com/miaizhe/magiskboot-linux/refs/heads/main/x86_64/magiskboot
+          chmod +x magiskboot
+          curl -fL "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/boot_a.img" -o boot.img
+          ./magiskboot unpack boot.img
+          cp "$GITHUB_WORKSPACE/kernel/msm-5.4/out/arch/arm64/boot/Image" kernel
+          ./magiskboot repack boot.img
+          ls -l new-boot.img
+          md5sum new-boot.img
+          cp new-boot.img "$GITHUB_WORKSPACE/boot-lkm-9rt-${{ env.BUILD_DATE }}.img"
+          cd "$GITHUB_WORKSPACE" && ls -l boot-lkm-9rt-*.img
       - name: P0 - dump LKM info
         run: |
           set -x
@@ -280,3 +302,4 @@ jobs:
             p0_report.txt
             kernel/msm-5.4/out/arch/arm64/boot/Image
             kernel/msm-5.4/out/arch/arm64/boot/Image.gz
+            boot-lkm-9rt-*.img
