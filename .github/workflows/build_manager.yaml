@@ -1,0 +1,87 @@
+name: Build custom KernelSU-Next Manager
+on:
+  workflow_dispatch:
+    inputs:
+      ksu_ref:
+        description: 'KernelSU-Next ref (branch/tag/sha)'
+        required: false
+        default: 'dev'
+      version_code:
+        description: 'manager versionCode override'
+        required: false
+        default: '33355'
+
+jobs:
+  build:
+    name: Build manager APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout build assets
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            .github/manager
+
+      - name: Checkout KernelSU-Next
+        uses: actions/checkout@v6
+        with:
+          repository: KernelSU-Next/KernelSU-Next
+          ref: ${{ inputs.ksu_ref }}
+          path: ksu
+          fetch-depth: 1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK components
+        run: |
+          sdkmanager --install "platforms;android-36" "build-tools;36.1.0" "ndk;29.0.14206865" 2>&1 | tail -5
+
+      - name: Patch manager version
+        run: |
+          cd ksu/manager
+          sed -i "s/return major \* 30000 + commitCount/return ${{ inputs.version_code }}/" build.gradle.kts
+          grep -n "return ${{ inputs.version_code }}" build.gradle.kts
+
+      - name: Restore keystore
+        run: |
+          base64 -d .github/manager/ksu-release.jks.b64 > /tmp/ksu.jks
+          keytool -list -keystore /tmp/ksu.jks -storepass one899ksu 2>&1 | head -6
+
+      - name: Build release APK
+        env:
+          KEYSTORE_FILE: /tmp/ksu.jks
+          KEYSTORE_PASSWORD: one899ksu
+          KEY_ALIAS: ksu
+          KEY_PASSWORD: one899ksu
+        run: |
+          cd ksu/manager
+          chmod +x gradlew
+          ./gradlew --no-daemon :app:assembleRelease \
+            -PKEYSTORE_FILE="$KEYSTORE_FILE" \
+            -PKEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
+            -PKEY_ALIAS="$KEY_ALIAS" \
+            -PKEY_PASSWORD="$KEY_PASSWORD" 2>&1 | tail -60
+
+      - name: Compute signature size/hash
+        run: |
+          set -x
+          find ksu/manager -name '*.apk' | head -5
+          for f in $(find ksu/manager -name '*.apk'); do
+            echo "=== $f"
+            python3 .github/manager/apk_sig_hash.py "$f" || true
+          done
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: ksun-manager-custom
+          path: ksu/manager/**/*.apk
