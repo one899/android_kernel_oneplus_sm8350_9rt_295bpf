@@ -476,8 +476,7 @@ jobs:
           KO_SZ=$(stat -c%s kernelsu-stripped.ko 2>/dev/null || echo 0)
           BOOT_SHA=$(sha256sum boot-lkm-9rt.img 2>/dev/null | cut -d" " -f1 || echo "")
           BOOT_SZ=$(stat -c%s boot-lkm-9rt.img 2>/dev/null || echo 0)
-          printf "{\"ko\":{\"version\":\"%s\",\"build_epoch\":%s,\"sha256\":\"%s\",\"size\":%s,\"name\":\"kernelsu-stripped.ko\"},\"boot\":{\"version\":\"%s\",\"build_epoch\":%s,\"sha256\":\"%s\",\"size\":%s,\"name\":\"boot-lkm-9rt.img\"}}\n" \\
-            "$KSVER" "$EPOCH" "$KO_SHA" "$KO_SZ" "$KREL" "$EPOCH" "$BOOT_SHA" "$BOOT_SZ" > manifest.json
+          printf '{"ko":{"version":"%s","build_epoch":%s,"sha256":"%s","size":%s,"name":"kernelsu-stripped.ko"},"boot":{"version":"%s","build_epoch":%s,"sha256":"%s","size":%s,"name":"boot-lkm-9rt.img"}}' "$KSVER" "$EPOCH" "$KO_SHA" "$KO_SZ" "$KREL" "$EPOCH" "$BOOT_SHA" "$BOOT_SZ" > manifest.json
           cat manifest.json
           npx -y wrangler@latest r2 object put "$R2_BUCKET/manifest.json" --file manifest.json --remote --content-type application/json || true
           echo "=== r2 list ==="
