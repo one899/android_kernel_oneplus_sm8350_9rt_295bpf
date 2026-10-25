@@ -38,17 +38,19 @@ fn try_load_from_partitions() -> bool {
         for e in rd.flatten() {
             let name = e.file_name().to_string_lossy().to_string();
             let base = format!("/mnt/ksys/class/block/{}", name);
-            let uev = std::fs::read_to_string(format!("{}/uevent", base)).unwrap_or_default();
-            if !uev.lines().any(|l| l == "DEVTYPE=partition") {
+            // 不依赖 DEVTYPE（早期可能还没写入 uevent）：按名字判断是否为分区
+            let last_digit = name.chars().last().map(|c| c.is_ascii_digit()).unwrap_or(false);
+            if !last_digit {
                 continue;
             }
+            let uev = std::fs::read_to_string(format!("{}/uevent", base)).unwrap_or_default();
             let sectors: u64 = std::fs::read_to_string(format!("{}/size", base))
                 .ok()
                 .and_then(|s| s.trim().parse().ok())
                 .unwrap_or(0);
             let mb = sectors / 2048;
-            if mb < 4 || mb > 96 {
-                continue;
+            if mb >= 4 && mb <= 96 {
+                log::info!("override: cand {} {}MB", name, mb);
             }
             let devname = uev
                 .lines()
