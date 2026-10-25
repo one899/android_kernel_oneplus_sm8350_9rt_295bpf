@@ -423,20 +423,25 @@ jobs:
           git push origin HEAD:p0/lkm || echo "push skipped"
       - name: Publish release (lkm-latest)
         if: success()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -x
-          BOOT=$(ls boot-lkm-9rt-*.img 2>/dev/null | head -1)
-          KO=$(ls kernelsu-stripped.ko 2>/dev/null | head -1)
-          [ -z "$BOOT" ] && { echo "no boot, skip"; exit 0; }
-          gh release view lkm-latest >/dev/null 2>&1 || gh release create lkm-latest --title "LKM latest" --notes "auto published by CI" || true
-          gh release upload lkm-latest "$BOOT" --clobber || true
-          if [ -n "$KO" ]; then gh release upload lkm-latest "$KO" --clobber || true; fi
+          cd "$GITHUB_WORKSPACE"
+          R="${{ github.repository }}"
+          BOOT=$(ls boot-lkm-9rt-*.img 2>/dev/null | head -1 || true)
+          KO=$(ls kernelsu-stripped.ko 2>/dev/null | head -1 || true)
+          if [ -z "$BOOT" ]; then echo "no boot, skip"; exit 0; fi
+          echo "BOOT=$BOOT KO=$KO"
+          ls -l "$BOOT" ${KO:-}
+          gh release view lkm-latest --repo "$R" >/dev/null 2>&1 || gh release create lkm-latest --repo "$R" --title "LKM latest" --notes "auto published by CI" || true
+          gh release upload lkm-latest --repo "$R" "$BOOT" --clobber || true
+          if [ -n "$KO" ]; then gh release upload lkm-latest --repo "$R" "$KO" --clobber || true; fi
           sha256sum "$BOOT" > SHA256SUMS
           if [ -n "$KO" ]; then sha256sum "$KO" >> SHA256SUMS; fi
-          gh release upload lkm-latest SHA256SUMS --clobber || true
-          gh release view lkm-latest --json assets -q ".assets[].name"
+          gh release upload lkm-latest --repo "$R" SHA256SUMS --clobber || true
+          gh release view lkm-latest --repo "$R" --json assets -q ".assets[].name" || true
       - name: Upload LKM + report
         uses: actions/upload-artifact@v6
         with:
