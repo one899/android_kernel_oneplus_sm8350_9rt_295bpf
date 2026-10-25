@@ -355,6 +355,15 @@ jobs:
           cp "$GITHUB_WORKSPACE/$IMG" kernel
           ./magiskboot cpio ramdisk.cpio "rm init" || true
           ./magiskboot cpio ramdisk.cpio "add 0750 init ksuinit"
+          # ==== strip 调试信息：13.5MB -> 约 1-2MB，才能放进 /metadata 做热更新 ====
+          STRIP=$(find "$GITHUB_WORKSPACE/compiler" -name llvm-strip -type f 2>/dev/null | head -1)
+          [ -z "$STRIP" ] && STRIP=$(find /opt/hostedtoolcache/ndk -name llvm-strip -type f 2>/dev/null | head -1)
+          echo "strip tool: $STRIP"
+          cp -f "$KO" kernelsu-stripped.ko
+          if [ -n "$STRIP" ]; then "$STRIP" --strip-debug kernelsu-stripped.ko || true; fi
+          echo "orig: $(stat -c%s "$KO")  stripped: $(stat -c%s kernelsu-stripped.ko)"
+          KO=./kernelsu-stripped.ko
+          cp -f kernelsu-stripped.ko "$GITHUB_WORKSPACE/kernelsu-stripped.ko"
           ./magiskboot cpio ramdisk.cpio "add 0644 kernelsu.ko $GITHUB_WORKSPACE/$KO"
           echo "=== ramdisk entries ==="
           ./magiskboot cpio ramdisk.cpio "ls" 2>/dev/null | grep -E "(init$|kernelsu)" || true
@@ -417,6 +426,7 @@ jobs:
           name: p0-bakasu
           path: |
             ksu_pin.txt
+            kernelsu-stripped.ko
             **/kernelsu.ko
             p0_report.txt
             kernel/msm-5.4/out/arch/arm64/boot/Image
