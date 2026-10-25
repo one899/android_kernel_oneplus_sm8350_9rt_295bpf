@@ -438,9 +438,11 @@ jobs:
           echo "BOOT=$BOOT KO=$KO"
           ls -l "$BOOT" ${KO:-}
           gh release view lkm-latest --repo "$R" >/dev/null 2>&1 || gh release create lkm-latest --repo "$R" --title "LKM latest" --notes "auto published by CI" || true
+          cp -f "$BOOT" boot-lkm-9rt.img
+          gh release upload lkm-latest --repo "$R" boot-lkm-9rt.img --clobber || true
           gh release upload lkm-latest --repo "$R" "$BOOT" --clobber || true
           if [ -n "$KO" ]; then gh release upload lkm-latest --repo "$R" "$KO" --clobber || true; fi
-          sha256sum "$BOOT" > SHA256SUMS
+          sha256sum boot-lkm-9rt.img > SHA256SUMS
           if [ -n "$KO" ]; then sha256sum "$KO" >> SHA256SUMS; fi
           gh release upload lkm-latest --repo "$R" SHA256SUMS --clobber || true
           gh release view lkm-latest --repo "$R" --json assets -q ".assets[].name" || true
