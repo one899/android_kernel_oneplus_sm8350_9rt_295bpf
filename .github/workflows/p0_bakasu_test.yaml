@@ -268,7 +268,7 @@ jobs:
           case "$KREL" in
             *" "*) echo "FATAL: kernel release contains a space: $KREL"; exit 1 ;;
           esac
-          printf '#!/bin/sh\necho "%s"\n' "-qgki-ColorArchive-Ultra-lkm-$BUILD_DATE" > scripts/setlocalversion
+          printf '#!/bin/sh\necho "%s"\n' "-qgki-ColorArchive-Ultra-lkm" > scripts/setlocalversion
           chmod +x scripts/setlocalversion
           ./scripts/config --file out/.config --set-str LOCALVERSION ""
           ./scripts/config --file out/.config -d LOCALVERSION_AUTO
