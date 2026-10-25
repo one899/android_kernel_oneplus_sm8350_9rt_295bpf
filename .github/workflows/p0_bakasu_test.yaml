@@ -356,11 +356,13 @@ jobs:
           ./magiskboot cpio ramdisk.cpio "rm init" || true
           ./magiskboot cpio ramdisk.cpio "add 0750 init ksuinit"
           # ==== strip 调试信息：13.5MB -> 约 1-2MB，才能放进 /metadata 做热更新 ====
-          STRIP=$(command -v llvm-strip 2>/dev/null)
-          [ -z "$STRIP" ] && STRIP=$(ls /usr/lib/llvm-*/bin/llvm-strip 2>/dev/null | head -1)
+          STRIP=""
+          STRIP=$(command -v llvm-strip 2>/dev/null || true)
+          if [ -z "$STRIP" ]; then STRIP=$(ls /usr/lib/llvm-*/bin/llvm-strip 2>/dev/null | head -1 || true); fi
+          if [ -z "$STRIP" ]; then STRIP=$(find /usr /opt -name llvm-strip -type f 2>/dev/null | head -1 || true); fi
           echo "strip tool: [$STRIP]"
           cp -f "$KO" /tmp/bp/kernelsu-stripped.ko
-          if [ -n "$STRIP" ]; then "$STRIP" --strip-debug /tmp/bp/kernelsu-stripped.ko || true; fi
+          if [ -n "$STRIP" ]; then "$STRIP" --strip-debug /tmp/bp/kernelsu-stripped.ko || echo "strip failed, keep unstripped"; fi
           echo "orig: $(stat -c%s "$KO")  stripped: $(stat -c%s /tmp/bp/kernelsu-stripped.ko)"
           cp -f /tmp/bp/kernelsu-stripped.ko "$GITHUB_WORKSPACE/kernelsu-stripped.ko"
           ./magiskboot cpio ramdisk.cpio "add 0644 kernelsu.ko /tmp/bp/kernelsu-stripped.ko"
