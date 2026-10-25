@@ -1,81 +1,117 @@
 #!/usr/bin/env python3
-"""给 ksuinit 打补丁：优先从 /metadata/ksu/kernelsu.ko 加载（.ko 热更新）。"""
+"""ksuinit 补丁：从 metadata 分区加载 /ksu/kernelsu.ko（.ko 热更新）。
+
+ksuinit 早于 ueventd，/dev/block/by-name/* 不存在；
+本机 sysfs 也没有 PARTNAME，因此按「小分区 + ext4 + 标记文件」扫描。
+"""
 import sys
 
 HELPER = r'''
 
 // ==== ColorArchive: .ko 热更新 ====
-// ksuinit 运行在 ueventd 之前，/dev/block/by-name/* 还不存在，
-// 需要从 /sys/class/block/*/uevent 里按 PARTNAME 找，再用 major:minor 定位节点。
-fn find_metadata_dev() -> Option<String> {
-    for p in [
-        "/dev/block/by-name/metadata",
-        "/dev/block/bootdevice/by-name/metadata",
-    ] {
-        if std::path::Path::new(p).exists() {
-            log::info!("metadata: by-name {}", p);
-            return Some(p.to_string());
+// 扫描所有 4MB~96MB 的分区，只读挂载 ext4，寻找 /ksu/kernelsu.ko
+fn try_load_from_partitions() -> Option<()> {
+    let rd = match std::fs::read_dir("/sys/class/block") {
+        Ok(r) => r,
+        Err(e) => {
+            log::error!("scan: read_dir failed: {:?}", e);
+            return None;
         }
-    }
-    if let Ok(entries) = std::fs::read_dir("/sys/class/block") {
-        for e in entries.flatten() {
-            let name = e.file_name().to_string_lossy().to_string();
-            let uev = format!("/sys/class/block/{}/uevent", name);
-            let ok = match std::fs::read_to_string(&uev) {
-                Ok(s) => s.lines().any(|l| l == "PARTNAME=metadata"),
-                Err(_) => false,
-            };
-            if !ok {
-                continue;
-            }
-            let devfile = format!("/sys/class/block/{}/dev", name);
-            if let Ok(dev) = std::fs::read_to_string(&devfile) {
-                let d = dev.trim().to_string();
-                for cand in [format!("/dev/block/{}", d), format!("/dev/block/{}", name)] {
-                    if std::path::Path::new(&cand).exists() {
-                        log::info!("metadata: sysfs {} (dev {})", cand, d);
-                        return Some(cand);
-                    }
-                }
-            }
+    };
+    let mut tried = 0;
+    for e in rd.flatten() {
+        let name = e.file_name().to_string_lossy().to_string();
+        let base = format!("/sys/class/block/{}", name);
+        let uev = match std::fs::read_to_string(format!("{}/uevent", base)) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        if !uev.lines().any(|l| l == "DEVTYPE=partition") {
+            continue;
         }
-    }
-    log::error!("metadata: device not found");
-    None
-}
-
-fn load_module_preferred() -> Result<()> {
-    if let Some(dev) = find_metadata_dev() {
+        let sectors: u64 = std::fs::read_to_string(format!("{}/size", base))
+            .ok()
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0);
+        let mb = sectors / 2048;
+        if mb < 4 || mb > 96 {
+            continue;
+        }
+        let devname = uev
+            .lines()
+            .find_map(|l| l.strip_prefix("DEVNAME="))
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| name.clone());
+        let dev = format!("/dev/block/{}", devname);
+        if !std::path::Path::new(&dev).exists() {
+            continue;
+        }
         let _ = std::fs::create_dir_all("/mnt/kmeta");
-        let c_dev = CString::new(dev)?;
-        let c_dir = CString::new("/mnt/kmeta")?;
-        let c_fs = CString::new("ext4")?;
+        let c_dev = match CString::new(dev.clone()) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let c_dir = CString::new("/mnt/kmeta").unwrap();
+        let c_fs = CString::new("ext4").unwrap();
         let rc = unsafe {
             mount(
                 c_dev.as_ptr(),
                 c_dir.as_ptr(),
                 c_fs.as_ptr(),
-                0,
+                1, // MS_RDONLY
                 std::ptr::null(),
             )
         };
-        log::info!("metadata: mount rc={}", rc);
+        if rc != 0 {
+            continue;
+        }
+        tried += 1;
+        let path = "/mnt/kmeta/ksu/kernelsu.ko";
+        let sz = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+        if sz > 0 {
+            log::info!("override: {} on {} ({} bytes)", path, dev, sz);
+            match load_module_from_path(path) {
+                Ok(()) => {
+                    log::info!("override: loaded OK");
+                    let _ = unmount("/mnt/kmeta", UnmountFlags::DETACH);
+                    return Some(());
+                }
+                Err(err) => log::error!("override: load failed {:?}", err),
+            }
+        }
+        let _ = unmount("/mnt/kmeta", UnmountFlags::DETACH);
+    }
+    log::info!("override: scanned ext4 partitions: {} mounted", tried);
+    None
+}
+
+fn load_module_preferred() -> Result<()> {
+    for p in [
+        "/dev/block/by-name/metadata",
+        "/dev/block/bootdevice/by-name/metadata",
+    ] {
+        if !std::path::Path::new(p).exists() {
+            continue;
+        }
+        let _ = std::fs::create_dir_all("/mnt/kmeta");
+        let c_dev = CString::new(p)?;
+        let c_dir = CString::new("/mnt/kmeta")?;
+        let c_fs = CString::new("ext4")?;
+        let rc = unsafe { mount(c_dev.as_ptr(), c_dir.as_ptr(), c_fs.as_ptr(), 1, std::ptr::null()) };
         if rc == 0 {
             let path = "/mnt/kmeta/ksu/kernelsu.ko";
-            let sz = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
-            log::info!("metadata: {} size={}", path, sz);
-            if sz > 0 {
-                match load_module_from_path(path) {
-                    Ok(()) => {
-                        log::info!("metadata: override module loaded ({} bytes)", sz);
-                        let _ = unmount("/mnt/kmeta", UnmountFlags::DETACH);
-                        return Ok(());
-                    }
-                    Err(e) => log::error!("metadata: override load failed: {:?}", e),
+            if std::path::Path::new(path).exists() {
+                log::info!("override: by-name {} -> {}", p, path);
+                if load_module_from_path(path).is_ok() {
+                    let _ = unmount("/mnt/kmeta", UnmountFlags::DETACH);
+                    return Ok(());
                 }
             }
             let _ = unmount("/mnt/kmeta", UnmountFlags::DETACH);
         }
+    }
+    if try_load_from_partitions().is_some() {
+        return Ok(());
     }
     log::info!("fallback to ramdisk /kernelsu.ko");
     load_module_from_path("/kernelsu.ko")
