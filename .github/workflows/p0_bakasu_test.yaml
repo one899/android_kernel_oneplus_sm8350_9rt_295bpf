@@ -468,7 +468,9 @@ jobs:
           fi
           # ==== 版本清单：小程序用它和本地对比 ====
           KSUCOUNT=0
-          if [ -d KernelSU ]; then KSUCOUNT=$(git -C KernelSU rev-list --count HEAD 2>/dev/null || echo 0); fi
+          KSUDIR=$(find "$GITHUB_WORKSPACE" -maxdepth 4 -type d -name KernelSU 2>/dev/null | head -1)
+          echo "KSUDIR=$KSUDIR"
+          if [ -n "$KSUDIR" ]; then KSUCOUNT=$(git -C "$KSUDIR" rev-list --count HEAD 2>/dev/null || echo 0); fi
           KSVER=$((30000 + KSUCOUNT + 700))
           KREL=$(cat kernel/msm-5.4/out/include/config/kernel.release 2>/dev/null || echo unknown)
           EPOCH=$(date +%s)
