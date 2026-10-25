@@ -443,6 +443,7 @@ jobs:
           gh release upload lkm-latest --repo "$R" SHA256SUMS --clobber || true
           gh release view lkm-latest --repo "$R" --json assets -q ".assets[].name" || true
       - name: Upload LKM + report
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: p0-bakasu
