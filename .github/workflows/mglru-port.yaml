@@ -1,6 +1,9 @@
 name: MGLRU port (CAF msm-5.4 backport series)
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/triggers/mglru'
 
 permissions:
   contents: write
