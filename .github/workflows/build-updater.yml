@@ -1,0 +1,56 @@
+name: Build ColorArchive Updater APK
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/app/**"
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build APK (aapt2 + javac + d8, no Gradle)
+        run: |
+          set -x
+          SDK=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}
+          BT=$(ls -d $SDK/build-tools/* 2>/dev/null | sort -V | tail -1)
+          PLATFORM=$(ls -d $SDK/platforms/android-* 2>/dev/null | sort -V | tail -1)
+          echo "BT=$BT"; echo "PLATFORM=$PLATFORM"
+          cd .github/app
+          rm -rf build && mkdir -p build/gen build/classes
+          "$BT/aapt2" compile --dir res -o build/res.zip
+          "$BT/aapt2" link -o build/base.apk -I "$PLATFORM/android.jar" --manifest AndroidManifest.xml -R build/res.zip --java build/gen --min-sdk-version 26 --target-sdk-version 34
+          javac -source 11 -target 11 -encoding UTF-8 -classpath "$PLATFORM/android.jar" -d build/classes $(find build/gen -name "*.java") $(find src -name "*.java")
+          "$BT/d8" --lib "$PLATFORM/android.jar" --min-api 26 --output build/ $(find build/classes -name "*.class")
+          cp build/base.apk build/unsigned.apk
+          ( cd build && zip -q -u unsigned.apk classes.dex )
+          ls -l build/
+
+      - name: Sign
+        run: |
+          set -x
+          SDK=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}
+          BT=$(ls -d $SDK/build-tools/* 2>/dev/null | sort -V | tail -1)
+          base64 -d .github/manager/ksu-release.jks.b64 > /tmp/ksu.jks
+          cd .github/app/build
+          "$BT/zipalign" -f -p 4 unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks /tmp/ksu.jks --ks-pass pass:one899ksu --key-pass pass:one899ksu --ks-key-alias ksu --out ColorArchiveUpdater.apk aligned.apk
+          "$BT/apksigner" verify --print-certs ColorArchiveUpdater.apk | head -5
+          ls -l ColorArchiveUpdater.apk
+          cp ColorArchiveUpdater.apk "$GITHUB_WORKSPACE/ColorArchiveUpdater.apk"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: updater-apk
+          path: ColorArchiveUpdater.apk
