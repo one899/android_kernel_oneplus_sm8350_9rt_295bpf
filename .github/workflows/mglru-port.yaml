@@ -1,0 +1,75 @@
+name: MGLRU port (CAF msm-5.4 backport series)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  port:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout kernel tree
+        uses: actions/checkout@v6
+        with:
+          ref: perf/eevdf-optimized
+          fetch-depth: 0
+
+      - name: Prepare branch
+        run: |
+          git config user.name "mglru-ci"
+          git config user.email "ci@users.noreply.github.com"
+          git checkout -b feat/mglru || git checkout feat/mglru
+
+      - name: Fetch MGLRU patch series from CodeLinaro
+        run: |
+          set -e
+          mkdir -p /tmp/mglru && cd /tmp/mglru
+          BASE="https://git.codelinaro.org/clo/la/kernel/msm-5.4/-/commit"
+          LIST="d5b2fa1c 37397878 0182f92a 7f53b0e7 a8a158aa baeb9a00 430499cf 4983c526 642d9866 578a3a3d 3c6c3597 df91dc96 79e66eaa 4fc3ef46 a5998f93 cb3958d0 a3eb6516 f8b57162 f7909cbd 18580efd 522c6b9c 397665b3 e4d3bd98 bf03a7c9 12fb1c3e 0f986fae a845525d"
+          n=0
+          for c in $LIST; do
+            n=$((n+1))
+            curl -sSL -o "$(printf %02d $n)-$c.patch" "$BASE/$c.patch" || true
+          done
+          ls -l | head -40
+          grep -c "^Subject:" *.patch | tail -3 || true
+
+      - name: Apply patches sequentially
+        id: apply
+        run: |
+          cd $GITHUB_WORKSPACE
+          APPLIED=0; FAILED=""
+          for p in /tmp/mglru/*.patch; do
+            if git am -3 --keep-non-patch "$p" > /tmp/am.log 2>&1; then
+              APPLIED=$((APPLIED+1))
+              echo "OK   $(basename $p)"
+            else
+              echo "FAIL $(basename $p)"
+              tail -25 /tmp/am.log
+              FAILED="$FAILED $(basename $p)"
+              git am --abort 2>/dev/null || true
+              git checkout -- . 2>/dev/null || true
+            fi
+          done
+          echo "APPLIED=$APPLIED" >> $GITHUB_ENV
+          echo "FAILED=$FAILED" >> $GITHUB_ENV
+          echo "applied=$APPLIED failed=$FAILED"
+
+      - name: Show resulting diff stat
+        run: |
+          git status --short | head -30
+          git diff --stat HEAD | tail -20
+          git log --oneline -25
+
+      - name: Push branch
+        run: |
+          git push -f origin feat/mglru || echo "push failed"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## MGLRU port" >> $GITHUB_STEP_SUMMARY
+          echo "- applied: ${APPLIED:-0}" >> $GITHUB_STEP_SUMMARY
+          echo "- failed: ${FAILED:-none}" >> $GITHUB_STEP_SUMMARY
