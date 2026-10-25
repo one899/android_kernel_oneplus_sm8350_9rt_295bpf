@@ -1,92 +1,116 @@
 #!/usr/bin/env python3
 """ksuinit 补丁：从 metadata 分区加载 /ksu/kernelsu.ko（.ko 热更新）。
 
-要点：
-- ksuinit 早于 init，/sys 与 /dev/block/by-name 都不存在
-- 自行把 sysfs 挂到 /mnt/ksys，用完立刻卸载（否则干扰 init 挂 /sys）
-- 扫描 4~96MB 分区，只读挂载 ext4，找 /ksu/kernelsu.ko
+关键：ksuinit 早于 init，/dev 未挂载、/dev/block/* 不存在，
+因此自行 mknod 创建块设备节点后再挂载。全程清理挂载。
 """
 import sys
 
 HELPER = r'''
 
-// ==== ColorArchive: .ko 热更新（全程清理挂载）====
+// ==== ColorArchive: .ko 热更新 ====
 fn umount_quiet(p: &str) {
     let _ = unmount(p, UnmountFlags::DETACH);
 }
 
+fn mknod_blk(path: &str, major: u32, minor: u32) -> i32 {
+    let _ = std::fs::remove_file(path);
+    let c = match CString::new(path) {
+        Ok(c) => c,
+        Err(_) => return -1,
+    };
+    // Linux new_encode_dev: (major << 8) | (minor & 0xff) | ((minor & ~0xff) << 12)
+    let dev: u64 = ((major as u64) << 8)
+        | ((minor as u64) & 0xff)
+        | (((minor as u64) & !0xffu64) << 12);
+    let mode: u32 = 0o060000 | 0o600; // S_IFBLK | 0600
+    unsafe { mknod(c.as_ptr(), mode, dev) }
+}
+
 fn mount_ro(src: &str, tgt: &str, fstype: &str) -> i32 {
     let _ = std::fs::create_dir_all(tgt);
-    let c_src = match CString::new(src) {
-        Ok(c) => c,
-        Err(_) => return -1,
-    };
-    let c_tgt = match CString::new(tgt) {
-        Ok(c) => c,
-        Err(_) => return -1,
-    };
-    let c_fs = match CString::new(fstype) {
-        Ok(c) => c,
-        Err(_) => return -1,
-    };
+    let c_src = match CString::new(src) { Ok(c) => c, Err(_) => return -1 };
+    let c_tgt = match CString::new(tgt) { Ok(c) => c, Err(_) => return -1 };
+    let c_fs = match CString::new(fstype) { Ok(c) => c, Err(_) => return -1 };
     unsafe { mount(c_src.as_ptr(), c_tgt.as_ptr(), c_fs.as_ptr(), 1, std::ptr::null()) }
 }
 
-fn try_load_from_partitions() -> bool {
-    let mut devs: Vec<String> = Vec::new();
-    if let Ok(rd) = std::fs::read_dir("/mnt/ksys/class/block") {
-        for e in rd.flatten() {
-            let name = e.file_name().to_string_lossy().to_string();
-            let base = format!("/mnt/ksys/class/block/{}", name);
-            // 不依赖 DEVTYPE（早期可能还没写入 uevent）：按名字判断是否为分区
-            let last_digit = name.chars().last().map(|c| c.is_ascii_digit()).unwrap_or(false);
-            if !last_digit {
-                continue;
-            }
-            let uev = std::fs::read_to_string(format!("{}/uevent", base)).unwrap_or_default();
-            let sectors: u64 = std::fs::read_to_string(format!("{}/size", base))
-                .ok()
-                .and_then(|s| s.trim().parse().ok())
-                .unwrap_or(0);
-            let mb = sectors / 2048;
-            if mb >= 4 && mb <= 96 {
-                log::info!("override: cand {} {}MB", name, mb);
-            }
-            let devname = uev
-                .lines()
-                .find_map(|l| l.strip_prefix("DEVNAME="))
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| name.clone());
-            let by_name = format!("/dev/block/{}", devname);
-            let by_num = std::fs::read_to_string(format!("{}/dev", base))
-                .ok()
-                .map(|d| format!("/dev/block/{}", d.trim()))
-                .unwrap_or_default();
-            if std::path::Path::new(&by_name).exists() {
-                devs.push(by_name);
-            } else if !by_num.is_empty() && std::path::Path::new(&by_num).exists() {
-                devs.push(by_num);
-            }
+struct Cand {
+    name: String,
+    mb: u64,
+    major: u32,
+    minor: u32,
+}
+
+fn scan_candidates() -> Vec<Cand> {
+    let mut out = Vec::new();
+    let rd = match std::fs::read_dir("/mnt/ksys/class/block") {
+        Ok(r) => r,
+        Err(e) => {
+            log::error!("override: read_dir failed {:?}", e);
+            return out;
         }
+    };
+    for e in rd.flatten() {
+        let name = e.file_name().to_string_lossy().to_string();
+        // 分区名以数字结尾（sda10 / mmcblk0p5），排除整盘与 ram*
+        if !name.chars().last().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+            continue;
+        }
+        if name.starts_with("ram") || name.starts_with("loop") {
+            continue;
+        }
+        let base = format!("/mnt/ksys/class/block/{}", name);
+        let sectors: u64 = std::fs::read_to_string(format!("{}/size", base))
+            .ok()
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0);
+        let mb = sectors / 2048;
+        if mb < 4 || mb > 96 {
+            continue;
+        }
+        let devs = std::fs::read_to_string(format!("{}/dev", base)).unwrap_or_default();
+        let mut it = devs.trim().split(':');
+        let major: u32 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+        let minor: u32 = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+        if major == 0 {
+            continue;
+        }
+        log::info!("override: cand {} {}MB {}:{}", name, mb, major, minor);
+        out.push(Cand { name, mb, major, minor });
     }
-    log::info!("override: {} candidates", devs.len());
-    for dev in devs {
-        let rc = mount_ro(&dev, "/mnt/kmeta", "ext4");
+    out
+}
+
+fn try_load_from_partitions() -> bool {
+    let cands = scan_candidates();
+    log::info!("override: {} candidates usable", cands.len());
+    for c in cands {
+        let node = "/ksu_blk";
+        let rc = mknod_blk(node, c.major, c.minor);
         if rc != 0 {
+            log::error!("override: mknod {} {}:{} rc={}", c.name, c.major, c.minor, rc);
+            continue;
+        }
+        let mrc = mount_ro(node, "/mnt/kmeta", "ext4");
+        if mrc != 0 {
+            let _ = std::fs::remove_file(node);
             continue;
         }
         let path = "/mnt/kmeta/ksu/kernelsu.ko";
         let sz = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
         if sz > 0 {
-            log::info!("override: found {} on {} ({} bytes)", path, dev, sz);
+            log::info!("override: FOUND {} on {} ({} bytes)", path, c.name, sz);
             if load_module_from_path(path).is_ok() {
                 log::info!("override: loaded OK");
                 umount_quiet("/mnt/kmeta");
+                let _ = std::fs::remove_file(node);
                 return true;
             }
-            log::error!("override: load failed on {}", dev);
+            log::error!("override: load failed on {}", c.name);
         }
         umount_quiet("/mnt/kmeta");
+        let _ = std::fs::remove_file(node);
     }
     false
 }
@@ -102,7 +126,7 @@ fn load_module_preferred() -> Result<()> {
     if done {
         return Ok(());
     }
-    log::info!("fallback to ramdisk /kernelsu.ko");
+    log::info!("override: fallback to ramdisk");
     load_module_from_path("/kernelsu.ko")
 }
 
@@ -113,6 +137,11 @@ unsafe extern "C" {
         fstype: *const std::os::raw::c_char,
         flags: std::os::raw::c_ulong,
         data: *const std::os::raw::c_void,
+    ) -> std::os::raw::c_int;
+    fn mknod(
+        path: *const std::os::raw::c_char,
+        mode: u32,
+        dev: u64,
     ) -> std::os::raw::c_int;
 }
 '''
