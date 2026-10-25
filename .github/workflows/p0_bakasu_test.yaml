@@ -446,6 +446,39 @@ jobs:
           if [ -n "$KO" ]; then sha256sum "$KO" >> SHA256SUMS; fi
           gh release upload lkm-latest --repo "$R" SHA256SUMS --clobber || true
           gh release view lkm-latest --repo "$R" --json assets -q ".assets[].name" || true
+      - name: Upload to Cloudflare R2
+        if: always()
+        continue-on-error: true
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          set -x
+          if [ -z "$R2_ACCOUNT_ID" ] || [ -z "$R2_ACCESS_KEY_ID" ]; then
+            echo "R2 secrets not configured, skip"; exit 0
+          fi
+          pip install --quiet awscli 2>/dev/null || pip3 install --quiet awscli
+          cd "$GITHUB_WORKSPACE"
+          EP="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          export AWS_DEFAULT_REGION="auto"
+          KO=$(ls kernelsu-stripped.ko 2>/dev/null | head -1 || true)
+          BOOT=$(ls boot-lkm-9rt-*.img 2>/dev/null | head -1 || true)
+          if [ -n "$KO" ]; then
+            aws s3 cp "$KO" "s3://$R2_BUCKET/kernelsu-stripped.ko" --endpoint-url "$EP" --acl public-read || true
+          fi
+          if [ -n "$BOOT" ]; then
+            cp -f "$BOOT" boot-lkm-9rt.img
+            aws s3 cp boot-lkm-9rt.img "s3://$R2_BUCKET/boot-lkm-9rt.img" --endpoint-url "$EP" --acl public-read || true
+          fi
+          if [ -n "$KO" ] && [ -n "$BOOT" ]; then
+            printf "%s %s\n%s %s\n" "$(sha256sum "$KO" | cut -d" " -f1)" "kernelsu-stripped.ko" "$(sha256sum boot-lkm-9rt.img | cut -d" " -f1)" "boot-lkm-9rt.img" > SHA256SUMS
+            aws s3 cp SHA256SUMS "s3://$R2_BUCKET/SHA256SUMS" --endpoint-url "$EP" --acl public-read --content-type text/plain || true
+          fi
+          aws s3 ls "s3://$R2_BUCKET/" --endpoint-url "$EP" || true
       - name: Upload LKM + report
         if: always()
         uses: actions/upload-artifact@v6
