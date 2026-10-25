@@ -466,6 +466,20 @@ jobs:
             cp -f "$BOOT" boot-lkm-9rt.img
             npx -y wrangler@latest r2 object put "$R2_BUCKET/boot-lkm-9rt.img" --file boot-lkm-9rt.img --remote || true
           fi
+          # ==== 版本清单：小程序用它和本地对比 ====
+          KSUCOUNT=0
+          if [ -d KernelSU ]; then KSUCOUNT=$(git -C KernelSU rev-list --count HEAD 2>/dev/null || echo 0); fi
+          KSVER=$((30000 + KSUCOUNT + 700))
+          KREL=$(cat kernel/msm-5.4/out/include/config/kernel.release 2>/dev/null || echo unknown)
+          EPOCH=$(date +%s)
+          KO_SHA=$(sha256sum kernelsu-stripped.ko 2>/dev/null | cut -d" " -f1 || echo "")
+          KO_SZ=$(stat -c%s kernelsu-stripped.ko 2>/dev/null || echo 0)
+          BOOT_SHA=$(sha256sum boot-lkm-9rt.img 2>/dev/null | cut -d" " -f1 || echo "")
+          BOOT_SZ=$(stat -c%s boot-lkm-9rt.img 2>/dev/null || echo 0)
+          printf "{\"ko\":{\"version\":\"%s\",\"build_epoch\":%s,\"sha256\":\"%s\",\"size\":%s,\"name\":\"kernelsu-stripped.ko\"},\"boot\":{\"version\":\"%s\",\"build_epoch\":%s,\"sha256\":\"%s\",\"size\":%s,\"name\":\"boot-lkm-9rt.img\"}}\n" \\
+            "$KSVER" "$EPOCH" "$KO_SHA" "$KO_SZ" "$KREL" "$EPOCH" "$BOOT_SHA" "$BOOT_SZ" > manifest.json
+          cat manifest.json
+          npx -y wrangler@latest r2 object put "$R2_BUCKET/manifest.json" --file manifest.json --remote --content-type application/json || true
           echo "=== r2 list ==="
           npx -y wrangler@latest r2 object list "$R2_BUCKET" --remote || true
 
