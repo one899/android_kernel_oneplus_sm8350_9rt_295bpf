@@ -1,0 +1,55 @@
+name: Merge Probe 662
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout vendor tree
+        uses: actions/checkout@v6
+        with:
+          ref: perf/eevdf-optimized
+          fetch-depth: 1
+          path: vendor
+
+      - name: Download upstream v6.6
+        run: |
+          set -x
+          curl -sSL -o up.tar.xz "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.6.tar.xz"
+          ls -l up.tar.xz
+          mkdir -p up
+          tar -xf up.tar.xz -C up --strip-components=1
+          head -5 up/Makefile
+
+      - name: Compare per subsystem
+        run: |
+          set -x
+          echo "=== vendor version ==="
+          head -5 vendor/Makefile
+          printf "%-28s %8s %10s\n" "SUBSYSTEM" "DIFFER" "ONLYVENDOR"
+          TOTAL=0
+          for d in kernel mm fs ipc lib block security crypto include drivers/base drivers/clk drivers/pinctrl drivers/regulator drivers/usb drivers/mmc drivers/i2c drivers/spi drivers/power drivers/gpu drivers/media sound net; do
+            if [ ! -d "vendor/$d" ] || [ ! -d "up/$d" ]; then continue; fi
+            D=$(diff -rq "vendor/$d" "up/$d" 2>/dev/null | grep -c differ || true)
+            O=$(diff -rq "vendor/$d" "up/$d" 2>/dev/null | grep -c "Only in vendor" || true)
+            TOTAL=$((TOTAL + D))
+            printf "%-28s %8s %10s\n" "$d" "$D" "$O"
+          done
+          echo "TOTAL_DIFFERENT=$TOTAL"
+          echo "TOTAL_DIFFERENT=$TOTAL" >> $GITHUB_ENV
+
+      - name: Top offenders detail
+        run: |
+          for d in drivers/gpu drivers/media sound net drivers/base drivers/clk kernel mm fs include; do
+            [ -d "vendor/$d" ] || continue
+            N=$(diff -rq "vendor/$d" "up/$d" 2>/dev/null | grep -c differ || true)
+            echo "--- $d : $N"
+            diff -rq "vendor/$d" "up/$d" 2>/dev/null | grep differ | head -4
+          done
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "total differing files: ${TOTAL_DIFFERENT:-unknown}" >> $GITHUB_STEP_SUMMARY
