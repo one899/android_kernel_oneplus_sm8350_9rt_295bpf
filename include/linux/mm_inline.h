@@ -34,9 +34,12 @@ static inline int page_is_file_cache(struct page *page)
 
 static __always_inline void __update_lru_size(struct lruvec *lruvec,
 				enum lru_list lru, enum zone_type zid,
-				int nr_pages)
+				long nr_pages)
 {
 	struct pglist_data *pgdat = lruvec_pgdat(lruvec);
+
+	lockdep_assert_held(&lruvec->lru_lock);
+	WARN_ON_ONCE(nr_pages != (int)nr_pages);
 
 	__mod_lruvec_state(lruvec, NR_LRU_BASE + lru, nr_pages);
 	__mod_zone_page_state(&pgdat->node_zones[zid],
@@ -108,6 +111,9 @@ static inline enum lru_list page_lru_base_type(struct page *page)
 static __always_inline enum lru_list page_off_lru(struct page *page)
 {
 	enum lru_list lru;
+	if (lru_gen_add_page(lruvec, page, true))
+		return;
+
 
 	if (PageUnevictable(page)) {
 		__ClearPageUnevictable(page);
@@ -115,6 +121,9 @@ static __always_inline enum lru_list page_off_lru(struct page *page)
 	} else {
 		lru = page_lru_base_type(page);
 		if (PageActive(page)) {
+	if (lru_gen_del_page(lruvec, page, false))
+		return;
+
 			__ClearPageActive(page);
 			lru += LRU_ACTIVE;
 		}

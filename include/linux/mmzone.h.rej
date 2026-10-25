@@ -1,0 +1,11 @@
+--- include/linux/mmzone.h
++++ include/linux/mmzone.h
+@@ -389,7 +389,7 @@ enum {
+  * min_seq behind.
+  *
+  * The number of pages in each generation is eventually consistent and therefore
+- * can be transiently negative.
++ * can be transiently negative when reset_batch_size() is pending.
+  */
+ struct lru_gen_struct {
+ 	/* the aging increments the youngest generation number */

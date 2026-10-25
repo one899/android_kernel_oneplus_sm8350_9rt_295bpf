@@ -1,0 +1,11 @@
+--- include/linux/page-flags.h
++++ include/linux/page-flags.h
+@@ -859,7 +859,7 @@ static inline void ClearPageSlabPfmemalloc(struct page *page)
+  * alloc-free cycle to prevent from reusing the page.
+  */
+ #define PAGE_FLAGS_CHECK_AT_PREP	\
+-	(PAGEFLAGS_MASK & ~__PG_HWPOISON)
++	((PAGEFLAGS_MASK & ~__PG_HWPOISON) | LRU_GEN_MASK | LRU_REFS_MASK)
+ 
+ #define PAGE_FLAGS_PRIVATE				\
+ 	(1UL << PG_private | 1UL << PG_private_2)
