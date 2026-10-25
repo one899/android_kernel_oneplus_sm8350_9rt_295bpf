@@ -300,6 +300,32 @@ jobs:
           llvm-objcopy -O binary -R .note -R .note.gnu.build-id -R .comment -S out/vmlinux out/arch/arm64/boot/Image
           ls -l out/arch/arm64/boot/Image
           md5sum out/arch/arm64/boot/Image
+      - uses: nttld/setup-ndk@v1
+        id: ndk
+        continue-on-error: true
+        with:
+          ndk-version: r29
+          add-to-path: false
+
+      - name: Build custom ksuinit (.ko override from /metadata)
+        continue-on-error: true
+        run: |
+          set -x
+          cd "$GITHUB_WORKSPACE"
+          SRC="KernelSU/userspace/ksuinit"
+          if [ ! -d "$SRC" ]; then echo "no ksuinit source, skip"; exit 0; fi
+          python3 .github/ksuinit_override.py "$SRC/src/init.rs" || exit 0
+          grep -q load_module_preferred "$SRC/src/init.rs" || { echo "patch missing"; exit 0; }
+          rustup toolchain install nightly --profile minimal --no-self-update || exit 0
+          rustup target add aarch64-linux-android --toolchain nightly || exit 0
+          export ANDROID_NDK_HOME="${{ steps.ndk.outputs.ndk-path }}"
+          echo "NDK=$ANDROID_NDK_HOME"
+          source KernelSU/.github/scripts/setup-rust-build.sh aarch64-linux-android 26 || exit 0
+          BUILTINS="$($CLANG_PATH --print-resource-dir)/lib/linux/libclang_rt.builtins-aarch64-android.a"
+          export RUSTFLAGS="-C target-feature=+crt-static -C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wno-unused-command-line-argument -C link-arg=$BUILTINS"
+          ( cd "$SRC" && cargo +nightly build --package ksuinit --target=aarch64-linux-android --release ) || exit 0
+          cp -f "$SRC/target/aarch64-linux-android/release/ksuinit" "$GITHUB_WORKSPACE/ksuinit-custom"
+          ls -l "$GITHUB_WORKSPACE/ksuinit-custom"
       - name: Pack LKM boot (kernel + ksuinit + kernelsu.ko)
         if: always()
         run: |
@@ -311,7 +337,13 @@ jobs:
           wget -q https://raw.githubusercontent.com/miaizhe/magiskboot-linux/refs/heads/main/x86_64/magiskboot
           chmod +x magiskboot
           curl -fL "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/boot_a.img" -o base.img
-          curl -fL "https://github.com/tiann/KernelSU/releases/download/v3.3.1/ksuinit-aarch64" -o ksuinit
+          if [ -f "$GITHUB_WORKSPACE/ksuinit-custom" ]; then
+            cp -f "$GITHUB_WORKSPACE/ksuinit-custom" ksuinit
+            echo "=== using CUSTOM ksuinit (metadata override) ==="
+          else
+            echo "=== using official ksuinit ==="
+            curl -fL "https://github.com/tiann/KernelSU/releases/download/v3.3.1/ksuinit-aarch64" -o ksuinit
+          fi
           chmod +x ksuinit
           ./magiskboot unpack base.img
           cp "$GITHUB_WORKSPACE/$IMG" kernel
