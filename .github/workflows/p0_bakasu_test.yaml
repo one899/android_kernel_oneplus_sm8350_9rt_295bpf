@@ -102,6 +102,7 @@ jobs:
               __arm64_sys_setns)      echo kernel/nsproxy.c ;;
               __arm64_sys_unshare)    echo kernel/fork.c ;;
               __tracepoint_sys_enter) echo kernel/trace/trace_syscalls.c ;;
+              __set_fixmap)           echo arch/arm64/mm/mmu.c ;;
               path_umount)            echo fs/namespace.c ;;
               __arm64_sys_umount)     echo fs/namespace.c ;;
               task_work_add)          echo kernel/task_work.c ;;
