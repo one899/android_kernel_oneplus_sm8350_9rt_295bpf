@@ -141,7 +141,9 @@ void tipc_net_finalize_work(struct work_struct *work)
 	struct tipc_net_work *fwork;
 
 	fwork = container_of(work, struct tipc_net_work, work);
+	rtnl_lock();
 	tipc_net_finalize(fwork->net, fwork->addr);
+	rtnl_unlock();
 }
 
 void tipc_sched_net_finalize(struct net *net, u32 addr)
