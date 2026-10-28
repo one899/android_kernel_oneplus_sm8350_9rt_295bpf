@@ -224,21 +224,19 @@ index 30796bb..ba1ce97 100644
  	.reset		=	fq_codel_reset,
  	.destroy	=	fq_codel_destroy,
 diff --git a/net/tls/tls_sw.c b/net/tls/tls_sw.c
-index 432bce3..86391ae 100644
+index 8ee0b4f..23b6687 100644
 --- a/net/tls/tls_sw.c
 +++ b/net/tls/tls_sw.c
-@@ -727,23 +727,25 @@ static int tls_push_record(struct sock *sk, int flags,
+@@ -727,21 +727,23 @@ static int tls_push_record(struct sock *sk, int flags,
  	i = msg_pl->sg.end;
  	sk_msg_iter_var_prev(i);
  
 +	/* SGL does not allow chain-after-chain: build the wrap link to the
 +	 * ring start *before* chaining content_type onto the last real elem.
 +	 */
-+	if (i < msg_pl->sg.start) {
-+		sg_chain(&msg_pl->sg.data[msg_pl->sg.start],
-+			 MAX_SKB_FRAGS - msg_pl->sg.start + 1,
++	if (i < msg_pl->sg.start)
++		sg_chain(msg_pl->sg.data, ARRAY_SIZE(msg_pl->sg.data),
 +			 msg_pl->sg.data);
-+	}
 +
  	rec->content_type = record_type;
  	if (prot->version == TLS_1_3_VERSION) {
@@ -252,11 +250,9 @@ index 432bce3..86391ae 100644
  		sg_mark_end(sk_msg_elem(msg_pl, i));
  	}
  
--	if (msg_pl->sg.end < msg_pl->sg.start) {
--		sg_chain(&msg_pl->sg.data[msg_pl->sg.start],
--			 MAX_SKB_FRAGS - msg_pl->sg.start + 1,
+-	if (msg_pl->sg.end < msg_pl->sg.start)
+-		sg_chain(msg_pl->sg.data, ARRAY_SIZE(msg_pl->sg.data),
 -			 msg_pl->sg.data);
--	}
 -
  	i = msg_pl->sg.start;
  	sg_chain(rec->sg_aead_in, 2, &msg_pl->sg.data[i]);
