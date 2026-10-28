@@ -466,12 +466,6 @@ jobs:
           if [ -n "$BOOT" ]; then
             cp -f "$BOOT" boot-lkm-9rt.img
             npx -y wrangler@latest r2 object put "$R2_BUCKET/boot-lkm-9rt.img" --file boot-lkm-9rt.img --remote || true
-            # 压缩版（192MB -> ~43MB，供小程序快速下载）
-            if [ -f boot-lkm-9rt.img ]; then
-              gzip -9 -c boot-lkm-9rt.img > boot-lkm-9rt.img.gz
-              ls -l boot-lkm-9rt.img.gz
-              npx -y wrangler@latest r2 object put "$R2_BUCKET/boot-lkm-9rt.img.gz" --file boot-lkm-9rt.img.gz --remote --content-type application/gzip || true
-            fi
           fi
           # ==== 版本清单：小程序用它和本地对比 ====
           KSUCOUNT=0
@@ -486,9 +480,7 @@ jobs:
           KO_SZ=$(stat -c%s kernelsu-stripped.ko 2>/dev/null || echo 0)
           BOOT_SHA=$(sha256sum boot-lkm-9rt.img 2>/dev/null | cut -d" " -f1 || echo "")
           BOOT_SZ=$(stat -c%s boot-lkm-9rt.img 2>/dev/null || echo 0)
-          GZ_SHA=$(sha256sum boot-lkm-9rt.img.gz 2>/dev/null | cut -d" " -f1 || echo "")
-          GZ_SZ=$(stat -c%s boot-lkm-9rt.img.gz 2>/dev/null || echo 0)
-          printf '{"ko":{"version":"%s","build_epoch":%s,"build_date":"%s","sha256":"%s","size":%s,"name":"kernelsu-stripped.ko"},"boot":{"version":"%s","build_epoch":%s,"build_date":"%s","sha256":"%s","size":%s,"name":"boot-lkm-9rt.img"},"boot_gz":{"sha256":"%s","size":%s,"name":"boot-lkm-9rt.img.gz"}}' "$KSVER" "$EPOCH" "$BDATE" "$KO_SHA" "$KO_SZ" "$KREL" "$EPOCH" "$BDATE" "$BOOT_SHA" "$BOOT_SZ" "$GZ_SHA" "$GZ_SZ" > manifest.json
+          printf '{"ko":{"version":"%s","build_epoch":%s,"build_date":"%s","sha256":"%s","size":%s,"name":"kernelsu-stripped.ko"},"boot":{"version":"%s","build_epoch":%s,"build_date":"%s","sha256":"%s","size":%s,"name":"boot-lkm-9rt.img"}}' "$KSVER" "$EPOCH" "$BDATE" "$KO_SHA" "$KO_SZ" "$KREL" "$EPOCH" "$BDATE" "$BOOT_SHA" "$BOOT_SZ" > manifest.json
           cat manifest.json
           npx -y wrangler@latest r2 object put "$R2_BUCKET/manifest.json" --file manifest.json --remote --content-type application/json || true
           echo "=== r2 list ==="
