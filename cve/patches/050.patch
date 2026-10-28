@@ -1,0 +1,41 @@
+From dcf83674d01d8c0c0612531360178960f2ce1445 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:39:30 +0000
+Subject: [PATCH] cve: CVE-2026-80808
+ (119a2f053242ed75bdd2ebc95baf3ae7db6ccacf)
+
+---
+ fs/ext4/xattr.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/fs/ext4/xattr.c b/fs/ext4/xattr.c
+index 6179bedea6cc..5a7e7bd7937f 100644
+--- a/fs/ext4/xattr.c
++++ b/fs/ext4/xattr.c
+@@ -2073,12 +2073,13 @@ ext4_xattr_block_set(handle_t *handle, struct inode *inode,
+ 				 * stable so we can check the additional
+ 				 * reference fits.
+ 				 */
+-				ref = le32_to_cpu(BHDR(new_bh)->h_refcount) + 1;
+-				if (ref > EXT4_XATTR_REFCOUNT_MAX) {
++				ref = le32_to_cpu(BHDR(new_bh)->h_refcount);
++				if (ref >= EXT4_XATTR_REFCOUNT_MAX) {
+ 					/*
+ 					 * Undo everything and check mbcache
+ 					 * again.
+ 					 */
++					clear_bit(MBE_REUSABLE_B, &ce->e_flags);
+ 					unlock_buffer(new_bh);
+ 					dquot_free_block(inode,
+ 							 EXT4_C2B(EXT4_SB(sb),
+@@ -2089,6 +2090,7 @@ ext4_xattr_block_set(handle_t *handle, struct inode *inode,
+ 					new_bh = NULL;
+ 					goto inserted;
+ 				}
++				ref++;
+ 				BHDR(new_bh)->h_refcount = cpu_to_le32(ref);
+ 				if (ref == EXT4_XATTR_REFCOUNT_MAX)
+ 					clear_bit(MBE_REUSABLE_B, &ce->e_flags);
+-- 
+2.56.0
+

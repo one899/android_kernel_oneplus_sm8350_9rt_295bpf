@@ -1,0 +1,32 @@
+From cdb59c90dd6273e1003642924a3cf6f5a54fb35d Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:41:22 +0000
+Subject: [PATCH] cve: CVE-2026-43015
+ (bf64cae913cdd4821f13d5d1d68900c0891bef69)
+
+---
+ drivers/net/ethernet/cadence/macb_pci.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/cadence/macb_pci.c b/drivers/net/ethernet/cadence/macb_pci.c
+index 94f3babfad30..c9c8fde1519a 100644
+--- a/drivers/net/ethernet/cadence/macb_pci.c
++++ b/drivers/net/ethernet/cadence/macb_pci.c
+@@ -111,10 +111,12 @@ static void macb_remove(struct pci_dev *pdev)
+ {
+ 	struct platform_device *plat_dev = pci_get_drvdata(pdev);
+ 	struct macb_platform_data *plat_data = dev_get_platdata(&plat_dev->dev);
++	struct clk *pclk = plat_data->pclk;
++	struct clk *hclk = plat_data->hclk;
+ 
+-	clk_unregister(plat_data->pclk);
+-	clk_unregister(plat_data->hclk);
+ 	platform_device_unregister(plat_dev);
++	clk_unregister(pclk);
++	clk_unregister(hclk);
+ }
+ 
+ static const struct pci_device_id dev_id_table[] = {
+-- 
+2.56.0
+

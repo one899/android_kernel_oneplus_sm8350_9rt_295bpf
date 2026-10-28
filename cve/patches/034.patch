@@ -1,0 +1,39 @@
+From b680a804fdc53f60ed83c95079e4967cba347b81 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 04:06:27 +0000
+Subject: [PATCH] cve: CVE-2026-68137
+ (db6b04f6d65549bb1c7bc8e64a92e7b7d03be676)
+
+---
+ net/x25/af_x25.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/net/x25/af_x25.c b/net/x25/af_x25.c
+index 851096110b4d..ac2001f58521 100644
+--- a/net/x25/af_x25.c
++++ b/net/x25/af_x25.c
+@@ -1771,15 +1771,19 @@ void x25_kill_by_neigh(struct x25_neigh *nb)
+ {
+ 	struct sock *s;
+ 
++again:
+ 	write_lock_bh(&x25_list_lock);
+ 
+ 	sk_for_each(s, &x25_list) {
+ 		if (x25_sk(s)->neighbour == nb) {
++			sock_hold(s);
+ 			write_unlock_bh(&x25_list_lock);
+ 			lock_sock(s);
+-			x25_disconnect(s, ENETUNREACH, 0, 0);
++			if (x25_sk(s)->neighbour == nb)
++				x25_disconnect(s, ENETUNREACH, 0, 0);
+ 			release_sock(s);
+-			write_lock_bh(&x25_list_lock);
++			sock_put(s);
++			goto again;
+ 		}
+ 	}
+ 	write_unlock_bh(&x25_list_lock);
+-- 
+2.56.0
+

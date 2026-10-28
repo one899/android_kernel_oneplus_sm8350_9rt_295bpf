@@ -1,0 +1,26 @@
+From 58446857ec0b1bd4310873f3ffafb4d3fcab638b Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 04:06:07 +0000
+Subject: [PATCH] cve: CVE-2026-80707
+ (348818277a3646d5b9fa60c9d20c00dc4bc86832)
+
+---
+ net/can/j1939/transport.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/can/j1939/transport.c b/net/can/j1939/transport.c
+index af23edde2b34..08e516d67859 100644
+--- a/net/can/j1939/transport.c
++++ b/net/can/j1939/transport.c
+@@ -1535,7 +1535,7 @@ j1939_session *j1939_session_fresh_new(struct j1939_priv *priv,
+ 	}
+ 
+ 	/* alloc data area */
+-	skb_put(skb, size);
++	skb_put_zero(skb, size);
+ 	/* skb is recounted in j1939_session_new() */
+ 	return session;
+ }
+-- 
+2.56.0
+

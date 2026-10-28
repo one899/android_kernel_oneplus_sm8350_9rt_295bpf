@@ -1,0 +1,26 @@
+From c53edd37e1068a55b9f03ab5fd4021d16ad06fc6 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:48 +0000
+Subject: [PATCH] cve: tipc tipc_net_finalize rtnl_lock (CVE-2025-40280)
+
+---
+ net/tipc/net.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/tipc/net.c b/net/tipc/net.c
+index 2498ce8b83c1..d0248fd70410 100644
+--- a/net/tipc/net.c
++++ b/net/tipc/net.c
+@@ -141,7 +141,9 @@ void tipc_net_finalize_work(struct work_struct *work)
+ 	struct tipc_net_work *fwork;
+ 
+ 	fwork = container_of(work, struct tipc_net_work, work);
++	rtnl_lock();
+ 	tipc_net_finalize(fwork->net, fwork->addr);
++	rtnl_unlock();
+ }
+ 
+ void tipc_sched_net_finalize(struct net *net, u32 addr)
+-- 
+2.56.0
+

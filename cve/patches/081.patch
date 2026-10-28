@@ -1,0 +1,40 @@
+From a08b1f775c5f9d3df935849562cc76f14d69a66f Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:13:04 +0000
+Subject: [PATCH] cve: CVE-2026-43061
+ (8190f9ab6ad90cb97652adbebd238b874a4ef70d)
+
+---
+ drivers/tty/serial/8250/8250_dma.c | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/drivers/tty/serial/8250/8250_dma.c b/drivers/tty/serial/8250/8250_dma.c
+index 820c9dad9fed..a3ab908d1370 100644
+--- a/drivers/tty/serial/8250/8250_dma.c
++++ b/drivers/tty/serial/8250/8250_dma.c
+@@ -139,7 +139,22 @@ void serial8250_tx_dma_flush(struct uart_8250_port *p)
+ 	 */
+ 	dma->tx_size = 0;
+ 
++	/*
++	 * We can't use `dmaengine_terminate_sync` because `uart_flush_buffer` is
++	 * holding the uart port spinlock.
++	 */
+ 	dmaengine_terminate_async(dma->txchan);
++
++	/*
++	 * The callback might or might not run. If it doesn't run, we need to ensure
++	 * that `tx_running` is cleared so that we can schedule new transactions.
++	 * If it does run, then the zombie callback will clear `tx_running` again
++	 * and perform a no-op since `tx_size` was cleared above.
++	 *
++	 * In either case, we ASSUME the DMA transaction will terminate before we
++	 * issue a new `serial8250_tx_dma`.
++	 */
++	dma->tx_running = 0;
+ }
+ 
+ int serial8250_rx_dma(struct uart_8250_port *p)
+-- 
+2.56.0
+

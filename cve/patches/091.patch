@@ -1,0 +1,28 @@
+From a2e27e9ba47a6c07ead06c26b47f496f214cd3b5 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:14:33 +0000
+Subject: [PATCH] cve: CVE-2026-74519
+ (e3cfb22bad363bebcfd55d909e12d499cb8c5490)
+
+---
+ drivers/pinctrl/devicetree.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/pinctrl/devicetree.c b/drivers/pinctrl/devicetree.c
+index e9bfb96a2e0e..ff2bab771bfb 100644
+--- a/drivers/pinctrl/devicetree.c
++++ b/drivers/pinctrl/devicetree.c
+@@ -68,6 +68,10 @@ static int dt_remember_or_free_map(struct pinctrl *p, const char *statename,
+ 	int i;
+ 	struct pinctrl_dt_map *dt_map;
+ 
++	/* Initialize dev_name before any allocation can fail */
++	for (i = 0; i < num_maps; i++)
++		map[i].dev_name = NULL;
++
+ 	/* Initialize common mapping table entry fields */
+ 	for (i = 0; i < num_maps; i++) {
+ 		const char *devname;
+-- 
+2.56.0
+

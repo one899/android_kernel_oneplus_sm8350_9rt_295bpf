@@ -1,0 +1,35 @@
+From 381294862331e058d2dd38bfc5b73604dd5192c6 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:14:34 +0000
+Subject: [PATCH] cve: CVE-2026-80591
+ (7dfac47e4189692f35230f3064acf2540e6d75fe)
+
+---
+ fs/f2fs/xattr.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fs/f2fs/xattr.c b/fs/f2fs/xattr.c
+index 8a2ba43fedd0..773642eed55a 100755
+--- a/fs/f2fs/xattr.c
++++ b/fs/f2fs/xattr.c
+@@ -574,8 +574,7 @@ ssize_t f2fs_listxattr(struct dentry *dentry, char *buffer, size_t buffer_size)
+ 	last_base_addr = (void *)base_addr + XATTR_SIZE(inode);
+ 
+ 	list_for_each_xattr(entry, base_addr) {
+-		const struct xattr_handler *handler =
+-			f2fs_xattr_handler(entry->e_name_index);
++		const struct xattr_handler *handler;
+ 		const char *prefix;
+ 		size_t prefix_len;
+ 		size_t size;
+@@ -589,6 +588,7 @@ ssize_t f2fs_listxattr(struct dentry *dentry, char *buffer, size_t buffer_size)
+ 			goto cleanup;
+ 		}
+ 
++		handler = f2fs_xattr_handler(entry->e_name_index);
+ 		if (!handler || (handler->list && !handler->list(dentry)))
+ 			continue;
+ 
+-- 
+2.56.0
+

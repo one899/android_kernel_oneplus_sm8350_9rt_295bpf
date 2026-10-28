@@ -1,0 +1,62 @@
+From 3a29ec16a95afeb9cfe6ab2459180996d39cb89a Mon Sep 17 00:00:00 2001
+From: one899 <319983460@qq.com>
+Date: Wed, 28 Oct 2026 12:25:29 +0800
+Subject: [PATCH] =?UTF-8?q?cve:=20=E6=89=B9=E6=AC=A12=20=E6=89=8B=E5=B7=A5?=
+ =?UTF-8?q?=E8=A1=A5=E4=B8=81=EF=BC=88tls=20=E6=94=B9=E4=B8=BA=E5=9F=BA?=
+ =?UTF-8?q?=E4=BA=8E=2064047=20=E5=90=8E=E7=9A=84=E7=89=88=E6=9C=AC?=
+ =?UTF-8?q?=EF=BC=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .github/cve/b2-manual.patch | 16 ++++++----------
+ 1 file changed, 6 insertions(+), 10 deletions(-)
+
+diff --git a/.github/cve/b2-manual.patch b/.github/cve/b2-manual.patch
+index b1c00afcd898..7e001287dbc6 100644
+--- a/.github/cve/b2-manual.patch
++++ b/.github/cve/b2-manual.patch
+@@ -224,21 +224,19 @@ index 30796bb..ba1ce97 100644
+  	.reset		=	fq_codel_reset,
+  	.destroy	=	fq_codel_destroy,
+ diff --git a/net/tls/tls_sw.c b/net/tls/tls_sw.c
+-index 432bce3..86391ae 100644
++index 8ee0b4f..23b6687 100644
+ --- a/net/tls/tls_sw.c
+ +++ b/net/tls/tls_sw.c
+-@@ -727,23 +727,25 @@ static int tls_push_record(struct sock *sk, int flags,
++@@ -727,21 +727,23 @@ static int tls_push_record(struct sock *sk, int flags,
+  	i = msg_pl->sg.end;
+  	sk_msg_iter_var_prev(i);
+  
+ +	/* SGL does not allow chain-after-chain: build the wrap link to the
+ +	 * ring start *before* chaining content_type onto the last real elem.
+ +	 */
+-+	if (i < msg_pl->sg.start) {
+-+		sg_chain(&msg_pl->sg.data[msg_pl->sg.start],
+-+			 MAX_SKB_FRAGS - msg_pl->sg.start + 1,
+++	if (i < msg_pl->sg.start)
+++		sg_chain(msg_pl->sg.data, ARRAY_SIZE(msg_pl->sg.data),
+ +			 msg_pl->sg.data);
+-+	}
+ +
+  	rec->content_type = record_type;
+  	if (prot->version == TLS_1_3_VERSION) {
+@@ -252,11 +250,9 @@ index 432bce3..86391ae 100644
+  		sg_mark_end(sk_msg_elem(msg_pl, i));
+  	}
+  
+--	if (msg_pl->sg.end < msg_pl->sg.start) {
+--		sg_chain(&msg_pl->sg.data[msg_pl->sg.start],
+--			 MAX_SKB_FRAGS - msg_pl->sg.start + 1,
++-	if (msg_pl->sg.end < msg_pl->sg.start)
++-		sg_chain(msg_pl->sg.data, ARRAY_SIZE(msg_pl->sg.data),
+ -			 msg_pl->sg.data);
+--	}
+ -
+  	i = msg_pl->sg.start;
+  	sg_chain(rec->sg_aead_in, 2, &msg_pl->sg.data[i]);
+-- 
+2.56.0
+

@@ -1,0 +1,26 @@
+From f579e5715699c040ea5500831eecb3f076e09b25 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:40:18 +0000
+Subject: [PATCH] cve: CVE-2025-37833
+ (52a266008a9450e4222994666b4510c026fbb03c)
+
+---
+ drivers/net/ethernet/sun/niu.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/net/ethernet/sun/niu.c b/drivers/net/ethernet/sun/niu.c
+index e659415c62bd..5eae7b5a54bf 100644
+--- a/drivers/net/ethernet/sun/niu.c
++++ b/drivers/net/ethernet/sun/niu.c
+@@ -9034,6 +9034,8 @@ static void niu_try_msix(struct niu *np, u8 *ldg_num_map)
+ 		msi_vec[i].entry = i;
+ 	}
+ 
++	pdev->dev_flags |= PCI_DEV_FLAGS_MSIX_TOUCH_ENTRY_DATA_FIRST;
++
+ 	num_irqs = pci_enable_msix_range(pdev, msi_vec, 1, num_irqs);
+ 	if (num_irqs < 0) {
+ 		np->flags &= ~NIU_FLAGS_MSIX;
+-- 
+2.56.0
+

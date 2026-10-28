@@ -1,0 +1,39 @@
+From e297a49a07248d406eb5e373b15c40abcebd8a91 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:41 +0000
+Subject: [PATCH] cve: scsi: pm80xx: Fix array-index-out-of-of-bounds on rmmod
+
+---
+ drivers/scsi/pm8001/pm8001_sas.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/scsi/pm8001/pm8001_sas.c b/drivers/scsi/pm8001/pm8001_sas.c
+index 1215fc36862d..45b1af5a8d74 100644
+--- a/drivers/scsi/pm8001/pm8001_sas.c
++++ b/drivers/scsi/pm8001/pm8001_sas.c
+@@ -875,6 +875,7 @@ static void pm8001_dev_gone_notify(struct domain_device *dev)
+ 	unsigned long flags = 0;
+ 	struct pm8001_hba_info *pm8001_ha;
+ 	struct pm8001_device *pm8001_dev = dev->lldd_dev;
++	struct domain_device *parent_dev = dev->parent;
+ 
+ 	pm8001_ha = pm8001_find_ha_by_dev(dev);
+ 	spin_lock_irqsave(&pm8001_ha->lock, flags);
+@@ -893,7 +894,13 @@ static void pm8001_dev_gone_notify(struct domain_device *dev)
+ 			spin_lock_irqsave(&pm8001_ha->lock, flags);
+ 		}
+ 		PM8001_CHIP_DISP->dereg_dev_req(pm8001_ha, device_id);
+-		pm8001_ha->phy[pm8001_dev->attached_phy].phy_attached = 0;
++
++		/*
++		 * The phy array only contains local phys. Thus, we cannot clear
++		 * phy_attached for a device behind an expander.
++		 */
++		if (!(parent_dev && dev_is_expander(parent_dev->dev_type)))
++			pm8001_ha->phy[pm8001_dev->attached_phy].phy_attached = 0;
+ 		pm8001_free_dev(pm8001_dev);
+ 	} else {
+ 		PM8001_DISC_DBG(pm8001_ha,
+-- 
+2.56.0
+

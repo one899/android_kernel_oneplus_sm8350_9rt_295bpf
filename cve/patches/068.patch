@@ -1,0 +1,26 @@
+From ac947dc87bd2162299edc60ed9db9b35212cc300 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:42:12 +0000
+Subject: [PATCH] cve: CVE-2026-74284
+ (a425c82ff06cda5165e0de3de8c2a445ec1f863e)
+
+---
+ net/sched/sch_hfsc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/sched/sch_hfsc.c b/net/sched/sch_hfsc.c
+index 0f57dd39b6b8..dfc8bb32f0b6 100644
+--- a/net/sched/sch_hfsc.c
++++ b/net/sched/sch_hfsc.c
+@@ -751,7 +751,7 @@ update_vf(struct hfsc_class *cl, unsigned int len, u64 cur_time)
+ 	u64 f; /* , myf_bound, delta; */
+ 	int go_passive = 0;
+ 
+-	if (cl->qdisc->q.qlen == 0 && cl->cl_flags & HFSC_FSC)
++	if (cl->qdisc->q.qlen == 0 && cl->cl_flags & HFSC_FSC && cl->cl_nactive)
+ 		go_passive = 1;
+ 
+ 	for (; cl->cl_parent != NULL; cl = cl->cl_parent) {
+-- 
+2.56.0
+

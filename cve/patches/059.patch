@@ -1,0 +1,26 @@
+From 55201ad70fadf28cb8d71c0e4e0ecdd3bf6885f7 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:41:23 +0000
+Subject: [PATCH] cve: CVE-2026-43232
+ (cac048ebfbb92d91d719f74b59177cb70a7633b8)
+
+---
+ drivers/net/wan/farsync.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/net/wan/farsync.c b/drivers/net/wan/farsync.c
+index 6ac6a649d4c2..d6781d9ecf1a 100644
+--- a/drivers/net/wan/farsync.c
++++ b/drivers/net/wan/farsync.c
+@@ -2618,6 +2618,8 @@ fst_remove_one(struct pci_dev *pdev)
+ 
+ 	fst_disable_intr(card);
+ 	free_irq(card->irq, card);
++	tasklet_kill(&fst_tx_task);
++	tasklet_kill(&fst_int_task);
+ 
+ 	iounmap(card->ctlmem);
+ 	iounmap(card->mem);
+-- 
+2.56.0
+

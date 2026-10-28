@@ -1,0 +1,28 @@
+From 633dca75fe083423b176bc1363efb4e9639b6548 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:41:04 +0000
+Subject: [PATCH] cve: CVE-2025-40021
+ (f3ac1f4eaba58e57943efa3e8b8d71fa7aab0abf)
+
+---
+ kernel/trace/trace_dynevent.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/kernel/trace/trace_dynevent.c b/kernel/trace/trace_dynevent.c
+index 2dafeab6a270..3ed8c1d99756 100644
+--- a/kernel/trace/trace_dynevent.c
++++ b/kernel/trace/trace_dynevent.c
+@@ -176,6 +176,10 @@ static int dyn_event_open(struct inode *inode, struct file *file)
+ {
+ 	int ret;
+ 
++	ret = security_locked_down(LOCKDOWN_TRACEFS);
++	if (ret)
++		return ret;
++
+ 	ret = tracing_check_open_get_tr(NULL);
+ 	if (ret)
+ 		return ret;
+-- 
+2.56.0
+

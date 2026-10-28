@@ -1,0 +1,35 @@
+From 5aa0bfac3d658d1ef6ac55d83a1fba7c831c8874 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:41:35 +0000
+Subject: [PATCH] cve: CVE-2026-64312
+ (81ce16d938db9b88cdc231522c0358395ae8c6b5)
+
+---
+ crypto/pcrypt.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/crypto/pcrypt.c b/crypto/pcrypt.c
+index 9e4179f5717e..0ac45278133c 100644
+--- a/crypto/pcrypt.c
++++ b/crypto/pcrypt.c
+@@ -120,6 +120,8 @@ static int pcrypt_aead_encrypt(struct aead_request *req)
+ 		return -EINPROGRESS;
+ 	if (err == -EBUSY) {
+ 		/* try non-parallel mode */
++		aead_request_set_callback(creq, flags, req->base.complete,
++					  req->base.data);
+ 		return crypto_aead_encrypt(creq);
+ 	}
+ 
+@@ -171,6 +173,8 @@ static int pcrypt_aead_decrypt(struct aead_request *req)
+ 		return -EINPROGRESS;
+ 	if (err == -EBUSY) {
+ 		/* try non-parallel mode */
++		aead_request_set_callback(creq, flags, req->base.complete,
++					  req->base.data);
+ 		return crypto_aead_decrypt(creq);
+ 	}
+ 
+-- 
+2.56.0
+

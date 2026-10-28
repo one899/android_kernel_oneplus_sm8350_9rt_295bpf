@@ -1,0 +1,25 @@
+From a410583a5f907dc8add7a5cb26373e38d7baf784 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:47 +0000
+Subject: [PATCH] cve: usbnet: Prevents free active kevent
+
+---
+ drivers/net/usb/usbnet.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/net/usb/usbnet.c b/drivers/net/usb/usbnet.c
+index b91f6561f342..1619826cf998 100644
+--- a/drivers/net/usb/usbnet.c
++++ b/drivers/net/usb/usbnet.c
+@@ -1627,6 +1627,8 @@ void usbnet_disconnect (struct usb_interface *intf)
+ 	net = dev->net;
+ 	unregister_netdev (net);
+ 
++	cancel_work_sync(&dev->kevent);
++
+ 	while ((urb = usb_get_from_anchor(&dev->deferred))) {
+ 		dev_kfree_skb(urb->context);
+ 		kfree(urb->sg);
+-- 
+2.56.0
+

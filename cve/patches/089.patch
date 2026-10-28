@@ -1,0 +1,27 @@
+From 51d96587d2bf05ec14a313f22f3a1147e3d7f783 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:14:24 +0000
+Subject: [PATCH] cve: CVE-2026-72428
+ (e62268e695075a481a6c4feeb022c19cf57422a6)
+
+---
+ kernel/bpf/verifier.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c
+index 1346f14c4374..a85be483dfe4 100644
+--- a/kernel/bpf/verifier.c
++++ b/kernel/bpf/verifier.c
+@@ -2521,7 +2521,8 @@ static int check_stack_write_fixed_off(struct bpf_verifier_env *env,
+ 		bool sanitize = reg && is_spillable_regtype(reg->type);
+ 
+ 		for (i = 0; i < size; i++) {
+-			u8 type = state->stack[spi].slot_type[i];
++			u8 type = state->stack[spi].slot_type[(slot - i) %
++							      BPF_REG_SIZE];
+ 
+ 			if (type != STACK_MISC && type != STACK_ZERO) {
+ 				sanitize = true;
+-- 
+2.56.0
+

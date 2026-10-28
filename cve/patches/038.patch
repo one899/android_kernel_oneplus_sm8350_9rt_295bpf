@@ -1,0 +1,138 @@
+From ceba1ff9d5eb4e914a379bfcce95685dd4b502eb Mon Sep 17 00:00:00 2001
+From: one899 <319983460@qq.com>
+Date: Wed, 28 Oct 2026 13:41:02 +0800
+Subject: [PATCH] =?UTF-8?q?cve:=20=E6=89=B9=E6=AC=A13+4=20=E6=89=8B?=
+ =?UTF-8?q?=E5=B7=A5=E8=A1=A5=E4=B8=81=EF=BC=88ext4=20xattr/quota/ip6=5Fgr?=
+ =?UTF-8?q?e/af=5Fpacket/cfg80211=EF=BC=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .github/cve/b34-manual.patch | 114 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 114 insertions(+)
+ create mode 100644 .github/cve/b34-manual.patch
+
+diff --git a/.github/cve/b34-manual.patch b/.github/cve/b34-manual.patch
+new file mode 100644
+index 000000000000..26d2a8a7991b
+--- /dev/null
++++ b/.github/cve/b34-manual.patch
+@@ -0,0 +1,114 @@
++diff --git a/fs/ext4/xattr.c b/fs/ext4/xattr.c
++index f32e720..929ee34 100644
++--- a/fs/ext4/xattr.c
+++++ b/fs/ext4/xattr.c
++@@ -980,6 +980,7 @@ int __ext4_xattr_set_credits(struct super_block *sb, struct inode *inode,
++ static int ext4_xattr_ensure_credits(handle_t *handle, struct inode *inode,
++ 				     int credits, struct buffer_head *bh,
++ 				     bool dirty, bool block_csum)
+++		brelse(iloc.bh);
++ {
++ 	int error;
++ 
++diff --git a/fs/quota/dquot.c b/fs/quota/dquot.c
++index 42c2ac0..6e4a0ad 100644
++--- a/fs/quota/dquot.c
+++++ b/fs/quota/dquot.c
++@@ -161,6 +161,9 @@ static struct quota_module_name module_names[] = INIT_QUOTA_MODULE_NAMES;
++ /* SLAB cache for dquot structures */
++ static struct kmem_cache *dquot_cachep;
++ 
+++/* workqueue for work quota_release_work*/
+++static struct workqueue_struct *quota_unbound_wq;
+++
++ int register_quota_format(struct quota_format_type *fmt)
++ {
++ 	spin_lock(&dq_list_lock);
++@@ -883,7 +886,7 @@ void dqput(struct dquot *dquot)
++ 	put_releasing_dquots(dquot);
++ 	atomic_dec(&dquot->dq_count);
++ 	spin_unlock(&dq_list_lock);
++-	queue_delayed_work(system_unbound_wq, &quota_release_work, 1);
+++	queue_delayed_work(quota_unbound_wq, &quota_release_work, 1);
++ }
++ EXPORT_SYMBOL(dqput);
++ 
++@@ -3094,6 +3097,11 @@ static int __init dquot_init(void)
++ 	if (register_shrinker(&dqcache_shrinker))
++ 		panic("Cannot register dquot shrinker");
++ 
+++	quota_unbound_wq = alloc_workqueue("quota_events_unbound",
+++					   WQ_UNBOUND | WQ_MEM_RECLAIM, WQ_MAX_ACTIVE);
+++	if (!quota_unbound_wq)
+++		panic("Cannot create quota_unbound_wq\n");
+++
++ 	return 0;
++ }
++ fs_initcall(dquot_init);
++diff --git a/net/ipv6/ip6_gre.c b/net/ipv6/ip6_gre.c
++index de707e0..05ef6f9 100644
++--- a/net/ipv6/ip6_gre.c
+++++ b/net/ipv6/ip6_gre.c
++@@ -2070,6 +2070,9 @@ static int ip6gre_changelink(struct net_device *dev, struct nlattr *tb[],
++ 	struct ip6gre_net *ign = net_generic(t->net, ip6gre_net_id);
++ 	struct __ip6_tnl_parm p;
++ 
+++	if (!rtnl_dev_link_net_capable(dev, t->net))
+++		return -EPERM;
+++
++ 	t = ip6gre_changelink_common(dev, tb, data, &p, extack);
++ 	if (IS_ERR(t))
++ 		return PTR_ERR(t);
++@@ -2284,6 +2287,9 @@ static int ip6erspan_changelink(struct net_device *dev, struct nlattr *tb[],
++ 	struct __ip6_tnl_parm p;
++ 	struct ip6_tnl *t;
++ 
+++	if (!rtnl_dev_link_net_capable(dev, t->net))
+++		return -EPERM;
+++
++ 	t = ip6gre_changelink_common(dev, tb, data, &p, extack);
++ 	if (IS_ERR(t))
++ 		return PTR_ERR(t);
++diff --git a/net/packet/af_packet.c b/net/packet/af_packet.c
++index 8e8fa0c..d69c9e4 100644
++--- a/net/packet/af_packet.c
+++++ b/net/packet/af_packet.c
++@@ -1928,13 +1928,13 @@ static void packet_parse_headers(struct sk_buff *skb, struct socket *sock)
++ 		skb->protocol = dev_parse_header_protocol(skb);
++ 	}
++ 
+++	skb_probe_transport_header(skb);
+++
++ 	/* Move network header to the right position for VLAN tagged packets */
++ 	if (likely(skb->dev->type == ARPHRD_ETHER) &&
++ 	    eth_type_vlan(skb->protocol) &&
++ 	    vlan_get_protocol_and_depth(skb, skb->protocol, &depth) != 0)
++ 		skb_set_network_header(skb, depth);
++-
++-	skb_probe_transport_header(skb);
++ }
++ 
++ /*
++diff --git a/net/wireless/reg.c b/net/wireless/reg.c
++index 7208714..2cbdbbf 100644
++--- a/net/wireless/reg.c
+++++ b/net/wireless/reg.c
++@@ -3909,6 +3909,9 @@ EXPORT_SYMBOL(regulatory_pre_cac_allowed);
++ static void cfg80211_check_and_end_cac(struct cfg80211_registered_device *rdev)
++ {
++ 	struct wireless_dev *wdev;
+++
+++	wiphy_lock(&rdev->wiphy);
+++
++ 	/* If we finished CAC or received radar, we should end any
++ 	 * CAC running on the same channels.
++ 	 * the check !cfg80211_chandef_dfs_usable contain 2 options:
++@@ -3923,6 +3926,8 @@ static void cfg80211_check_and_end_cac(struct cfg80211_registered_device *rdev)
++ 		    !cfg80211_chandef_dfs_usable(&rdev->wiphy, &wdev->chandef))
++ 			rdev_end_cac(rdev, wdev->netdev);
++ 	}
+++
+++	wiphy_unlock(&rdev->wiphy);
++ }
++ 
++ void regulatory_propagate_dfs_state(struct wiphy *wiphy,
+-- 
+2.56.0
+

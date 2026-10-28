@@ -1,0 +1,35 @@
+From bf34438f979ecf6572ce93d9caa69817d79e340b Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:39:19 +0000
+Subject: [PATCH] cve: CVE-2026-46046
+ (dd98a5603a212ea9c96c6982ccdbcc748fdb9a56)
+
+---
+ fs/ext4/xattr.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/fs/ext4/xattr.c b/fs/ext4/xattr.c
+index 4ce6a18b26cf..6179bedea6cc 100644
+--- a/fs/ext4/xattr.c
++++ b/fs/ext4/xattr.c
+@@ -1152,7 +1152,7 @@ ext4_xattr_inode_dec_ref_all(handle_t *handle, struct inode *parent,
+ {
+ 	struct inode *ea_inode;
+ 	struct ext4_xattr_entry *entry;
+-	struct ext4_iloc iloc;
++	struct ext4_iloc iloc = { .bh = NULL };
+ 	bool dirty = false;
+ 	unsigned int ea_ino;
+ 	int err;
+@@ -1235,6 +1235,8 @@ ext4_xattr_inode_dec_ref_all(handle_t *handle, struct inode *parent,
+ 			ext4_warning_inode(parent,
+ 					   "handle dirty metadata err=%d", err);
+ 	}
++
++	brelse(iloc.bh);
+ }
+ 
+ /*
+-- 
+2.56.0
+

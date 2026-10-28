@@ -1,0 +1,27 @@
+From f6a856d39bfbcf7a5c7e102b1aa2047f5491c1f5 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:39:18 +0000
+Subject: [PATCH] cve: CVE-2026-31755
+ (3cf0580a09d417eab41ce914a11f9cde3a121871)
+
+---
+ drivers/usb/cdns3/gadget.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/usb/cdns3/gadget.c b/drivers/usb/cdns3/gadget.c
+index 61283e7e602a..828508d35cea 100644
+--- a/drivers/usb/cdns3/gadget.c
++++ b/drivers/usb/cdns3/gadget.c
+@@ -1997,6 +1997,9 @@ static int __cdns3_gadget_ep_queue(struct usb_ep *ep,
+ 	struct cdns3_request *priv_req;
+ 	int ret = 0;
+ 
++	if (!ep->desc)
++		return -ESHUTDOWN;
++
+ 	request->actual = 0;
+ 	request->status = -EINPROGRESS;
+ 	priv_req = to_cdns3_request(request);
+-- 
+2.56.0
+

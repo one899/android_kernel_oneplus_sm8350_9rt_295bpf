@@ -1,0 +1,28 @@
+From 5ea9adcbbecbd651d3481af4564fbbe0d1d36ba5 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:39:10 +0000
+Subject: [PATCH] cve: CVE-2026-31617
+ (068a7f2749fff6462a0a908ec415b885fe430f50)
+
+---
+ drivers/usb/gadget/function/f_ncm.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/usb/gadget/function/f_ncm.c b/drivers/usb/gadget/function/f_ncm.c
+index 03851c9c770a..ab694ae1482f 100644
+--- a/drivers/usb/gadget/function/f_ncm.c
++++ b/drivers/usb/gadget/function/f_ncm.c
+@@ -1218,8 +1218,8 @@ static int ncm_unwrap_ntb(struct gether *port,
+ 
+ 	block_len = get_ncm(&tmp, opts->block_length);
+ 	/* (d)wBlockLength */
+-	if (block_len > ntb_max) {
+-		INFO(port->func.config->cdev, "OUT size exceeded\n");
++	if ((block_len < opts->nth_size + opts->ndp_size) || (block_len > ntb_max)) {
++		INFO(port->func.config->cdev, "Bad block length: %#X\n", block_len);
+ 		goto err;
+ 	}
+ 
+-- 
+2.56.0
+

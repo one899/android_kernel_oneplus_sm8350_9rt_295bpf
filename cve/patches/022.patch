@@ -1,0 +1,31 @@
+From 25a7e48876360716318052c387ffaf5c8d50dced Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 04:05:02 +0000
+Subject: [PATCH] cve: CVE-2026-64047
+ (73963a375885d5ccb7def39fd0b4f542e0f343dd)
+
+---
+ net/tls/tls_sw.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/net/tls/tls_sw.c b/net/tls/tls_sw.c
+index 432bce329392..8ee0b4f52746 100644
+--- a/net/tls/tls_sw.c
++++ b/net/tls/tls_sw.c
+@@ -738,11 +738,9 @@ static int tls_push_record(struct sock *sk, int flags,
+ 		sg_mark_end(sk_msg_elem(msg_pl, i));
+ 	}
+ 
+-	if (msg_pl->sg.end < msg_pl->sg.start) {
+-		sg_chain(&msg_pl->sg.data[msg_pl->sg.start],
+-			 MAX_SKB_FRAGS - msg_pl->sg.start + 1,
++	if (msg_pl->sg.end < msg_pl->sg.start)
++		sg_chain(msg_pl->sg.data, ARRAY_SIZE(msg_pl->sg.data),
+ 			 msg_pl->sg.data);
+-	}
+ 
+ 	i = msg_pl->sg.start;
+ 	sg_chain(rec->sg_aead_in, 2, &msg_pl->sg.data[i]);
+-- 
+2.56.0
+

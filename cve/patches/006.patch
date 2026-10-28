@@ -1,0 +1,28 @@
+From 08c5849db4910ad4c2c1c37d6d8abe6f4d12312e Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:35 +0000
+Subject: [PATCH] cve: Bluetooth: Fix use-after-free in
+ l2cap_sock_cleanup_listen()
+
+---
+ net/bluetooth/l2cap_sock.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/net/bluetooth/l2cap_sock.c b/net/bluetooth/l2cap_sock.c
+index e6d93501e106..9d7f079d7c21 100644
+--- a/net/bluetooth/l2cap_sock.c
++++ b/net/bluetooth/l2cap_sock.c
+@@ -1226,7 +1226,10 @@ static int l2cap_sock_release(struct socket *sock)
+ 	if (!sk)
+ 		return 0;
+ 
++	lock_sock_nested(sk, L2CAP_NESTING_PARENT);
+ 	l2cap_sock_cleanup_listen(sk);
++	release_sock(sk);
++
+ 	bt_sock_unlink(&l2cap_sk_list, sk);
+ 
+ 	err = l2cap_sock_shutdown(sock, 2);
+-- 
+2.56.0
+

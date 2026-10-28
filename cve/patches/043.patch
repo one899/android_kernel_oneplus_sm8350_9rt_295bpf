@@ -1,0 +1,30 @@
+From 75c251c62f428b74e73f1043453a5699ef5362f1 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:38:57 +0000
+Subject: [PATCH] cve: CVE-2025-68820
+ (b72a3476f0c97d02f63a6e9fff127348d55436f6)
+
+---
+ fs/ext4/xattr.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/fs/ext4/xattr.c b/fs/ext4/xattr.c
+index f32e720e9e20..4ce6a18b26cf 100644
+--- a/fs/ext4/xattr.c
++++ b/fs/ext4/xattr.c
+@@ -1162,7 +1162,11 @@ ext4_xattr_inode_dec_ref_all(handle_t *handle, struct inode *parent,
+ 	if (block_csum)
+ 		end = (void *)bh->b_data + bh->b_size;
+ 	else {
+-		ext4_get_inode_loc(parent, &iloc);
++		err = ext4_get_inode_loc(parent, &iloc);
++		if (err) {
++			EXT4_ERROR_INODE(parent, "parent inode loc (error %d)", err);
++			return;
++		}
+ 		end = (void *)ext4_raw_inode(&iloc) + EXT4_SB(parent->i_sb)->s_inode_size;
+ 	}
+ 
+-- 
+2.56.0
+

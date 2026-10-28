@@ -1,0 +1,35 @@
+From f0a48e5324aebfeb1d2b2cd6eea5a2e1cc823dd4 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:37 +0000
+Subject: [PATCH] cve: fbcon: fix integer overflow in fbcon_do_set_font
+
+---
+ drivers/video/fbdev/core/fbcon.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/video/fbdev/core/fbcon.c b/drivers/video/fbdev/core/fbcon.c
+index e48792828939..c8e249ec8e63 100644
+--- a/drivers/video/fbdev/core/fbcon.c
++++ b/drivers/video/fbdev/core/fbcon.c
+@@ -2509,9 +2509,16 @@ static int fbcon_set_font(struct vc_data *vc, struct console_font *font,
+ 	if (fbcon_invalid_charcount(info, charcount))
+ 		return -EINVAL;
+ 
+-	size = CALC_FONTSZ(h, pitch, charcount);
++	/* Check for integer overflow in font size calculation */
++	if (check_mul_overflow(h, pitch, &size) ||
++	    check_mul_overflow(size, charcount, &size))
++		return -EINVAL;
++
++	/* Check for overflow in allocation size calculation */
++	if (check_add_overflow(FONT_EXTRA_WORDS * sizeof(int), size, &size))
++		return -EINVAL;
+ 
+-	new_data = kmalloc(FONT_EXTRA_WORDS * sizeof(int) + size, GFP_USER);
++	new_data = kmalloc(size, GFP_USER);
+ 
+ 	if (!new_data)
+ 		return -ENOMEM;
+-- 
+2.56.0
+

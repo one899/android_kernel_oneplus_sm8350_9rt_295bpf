@@ -1,0 +1,97 @@
+From 98c179ceff41c28c1221e8903b8bad89f65e2df4 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:42:13 +0000
+Subject: [PATCH] cve: CVE-2026-74632
+ (9c0fd1802ce06d7709f0bae4edeb085288f28764)
+
+---
+ mm/huge_memory.c | 46 +++++++++++++++++++++++++++++++---------------
+ 1 file changed, 31 insertions(+), 15 deletions(-)
+
+diff --git a/mm/huge_memory.c b/mm/huge_memory.c
+index 62e6ca547e9e..6206a3d77b3a 100755
+--- a/mm/huge_memory.c
++++ b/mm/huge_memory.c
+@@ -67,6 +67,7 @@ unsigned long transparent_hugepage_flags __read_mostly =
+ static struct shrinker deferred_split_shrinker;
+ 
+ static atomic_t huge_zero_refcount;
++static DEFINE_SPINLOCK(huge_zero_lock);
+ struct page *huge_zero_page __read_mostly;
+ unsigned long huge_zero_pfn __read_mostly = ~0UL;
+ 
+@@ -88,7 +89,8 @@ bool transparent_hugepage_enabled(struct vm_area_struct *vma)
+ static struct page *get_huge_zero_page(void)
+ {
+ 	struct page *zero_page;
+-retry:
++
++	/* Paired with atomic_set_release(). */
+ 	if (likely(atomic_inc_not_zero(&huge_zero_refcount)))
+ 		return READ_ONCE(huge_zero_page);
+ 
+@@ -103,17 +105,22 @@ static struct page *get_huge_zero_page(void)
+ 		return NULL;
+ 	}
+ 	count_vm_event(THP_ZERO_PAGE_ALLOC);
+-	preempt_disable();
+-	if (cmpxchg(&huge_zero_page, NULL, zero_page)) {
+-		preempt_enable();
++
++	/* Paired with critical section in shrink_huge_zero_page_scan(). */
++	spin_lock(&huge_zero_lock);
++	if (huge_zero_page) {
++		/* Somebody else already installed it. */
++		atomic_inc(&huge_zero_refcount);
++		spin_unlock(&huge_zero_lock);
+ 		__free_pages(zero_page, compound_order(zero_page));
+-		goto retry;
++		return READ_ONCE(huge_zero_page);
+ 	}
++	WRITE_ONCE(huge_zero_page, zero_page);
+ 	WRITE_ONCE(huge_zero_pfn, page_to_pfn(zero_page));
++	/* Paired with atomic_inc_not_zero(). +1 for shrinker pin. */
++	atomic_set_release(&huge_zero_refcount, 2);
++	spin_unlock(&huge_zero_lock);
+ 
+-	/* We take additional reference here. It will be put back by shrinker */
+-	atomic_set(&huge_zero_refcount, 2);
+-	preempt_enable();
+ 	return READ_ONCE(huge_zero_page);
+ }
+ 
+@@ -157,15 +164,24 @@ static unsigned long shrink_huge_zero_page_count(struct shrinker *shrink,
+ static unsigned long shrink_huge_zero_page_scan(struct shrinker *shrink,
+ 				       struct shrink_control *sc)
+ {
+-	if (atomic_cmpxchg(&huge_zero_refcount, 1, 0) == 1) {
+-		struct page *zero_page = xchg(&huge_zero_page, NULL);
+-		BUG_ON(zero_page == NULL);
+-		WRITE_ONCE(huge_zero_pfn, ~0UL);
+-		__free_pages(zero_page, compound_order(zero_page));
+-		return HPAGE_PMD_NR;
++	struct page *zero_page;
++
++	/* Paired with critical section in get_huge_zero_page(). */
++	spin_lock(&huge_zero_lock);
++	/* Paired with atomic_inc_not_zero() in get_huge_zero_page(). */
++	if (atomic_cmpxchg(&huge_zero_refcount, 1, 0) != 1) {
++		spin_unlock(&huge_zero_lock);
++		return 0;
+ 	}
+ 
+-	return 0;
++	zero_page = huge_zero_page;
++	VM_WARN_ON_ONCE(!zero_page);
++	WRITE_ONCE(huge_zero_page, NULL);
++	WRITE_ONCE(huge_zero_pfn, ~0UL);
++	spin_unlock(&huge_zero_lock);
++
++	__free_pages(zero_page, compound_order(zero_page));
++	return HPAGE_PMD_NR;
+ }
+ 
+ static struct shrinker huge_zero_page_shrinker = {
+-- 
+2.56.0
+

@@ -1,0 +1,70 @@
+From b3152048440ed2b29d01f1cdae207c7a21583e8c Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:39:30 +0000
+Subject: [PATCH] cve: CVE-2026-68368
+ (35d15bbaec0557330e774ec31412ef508de6e0e0)
+
+---
+ drivers/usb/gadget/function/f_ncm.c | 17 +++++++++++++----
+ 1 file changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/usb/gadget/function/f_ncm.c b/drivers/usb/gadget/function/f_ncm.c
+index ab694ae1482f..2178a65bd285 100644
+--- a/drivers/usb/gadget/function/f_ncm.c
++++ b/drivers/usb/gadget/function/f_ncm.c
+@@ -1197,6 +1197,10 @@ static int ncm_unwrap_ntb(struct gether *port,
+ 	int		to_process = skb->len;
+ 
+ parse_ntb:
++	if (to_process < (int)opts->nth_size) {
++		INFO(port->func.config->cdev, "Packet too small for headers\n");
++		goto err;
++	}
+ 	tmp = (__le16 *)ntb_ptr;
+ 
+ 	/* dwSignature */
+@@ -1217,8 +1221,12 @@ static int ncm_unwrap_ntb(struct gether *port,
+ 	tmp++; /* skip wSequence */
+ 
+ 	block_len = get_ncm(&tmp, opts->block_length);
++	if (block_len == 0)
++		block_len = to_process;
++
+ 	/* (d)wBlockLength */
+-	if ((block_len < opts->nth_size + opts->ndp_size) || (block_len > ntb_max)) {
++	if ((block_len < opts->nth_size + opts->ndp_size) || (block_len > ntb_max) ||
++			(block_len > to_process)) {
+ 		INFO(port->func.config->cdev, "Bad block length: %#X\n", block_len);
+ 		goto err;
+ 	}
+@@ -1281,7 +1289,7 @@ static int ncm_unwrap_ntb(struct gether *port,
+ 			index = index2;
+ 			/* wDatagramIndex[0] */
+ 			if ((index < opts->nth_size) ||
+-					(index > block_len - opts->dpe_size)) {
++					(index > block_len)) {
+ 				INFO(port->func.config->cdev,
+ 				     "Bad index: %#X\n", index);
+ 				goto err;
+@@ -1293,7 +1301,8 @@ static int ncm_unwrap_ntb(struct gether *port,
+ 			 * ethernet hdr + crc or larger than max frame size
+ 			 */
+ 			if ((dg_len < 14 + crc_len) ||
+-					(dg_len > frame_max)) {
++					(dg_len > frame_max) ||
++					(dg_len > block_len - index)) {
+ 				INFO(port->func.config->cdev,
+ 				     "Bad dgram length: %#X\n", dg_len);
+ 				goto err;
+@@ -1318,7 +1327,7 @@ static int ncm_unwrap_ntb(struct gether *port,
+ 			dg_len2 = get_ncm(&tmp, opts->dgram_item_len);
+ 
+ 			/* wDatagramIndex[1] */
+-			if (index2 > block_len - opts->dpe_size) {
++			if (index2 > block_len) {
+ 				INFO(port->func.config->cdev,
+ 				     "Bad index: %#X\n", index2);
+ 				goto err;
+-- 
+2.56.0
+

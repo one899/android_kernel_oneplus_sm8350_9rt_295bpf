@@ -1,0 +1,35 @@
+From c00c7387e5554e3793c49b2ad74499ee544db53d Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 04:06:06 +0000
+Subject: [PATCH] cve: CVE-2026-22997
+ (a73e7d7e346dae1c22dc3e95b02ca464b12daf2c)
+
+---
+ net/can/j1939/transport.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/net/can/j1939/transport.c b/net/can/j1939/transport.c
+index d75b71f6491a..af23edde2b34 100644
+--- a/net/can/j1939/transport.c
++++ b/net/can/j1939/transport.c
+@@ -1678,8 +1678,16 @@ static int j1939_xtp_rx_rts_session_active(struct j1939_session *session,
+ 
+ 		j1939_session_timers_cancel(session);
+ 		j1939_session_cancel(session, J1939_XTP_ABORT_BUSY);
+-		if (session->transmission)
++		if (session->transmission) {
+ 			j1939_session_deactivate_activate_next(session);
++		} else if (session->state == J1939_SESSION_WAITING_ABORT) {
++			/* Force deactivation for the receiver.
++			 * If we rely on the timer starting in j1939_session_cancel,
++			 * a second RTS call here will cancel that timer and fail
++			 * to restart it because the state is already WAITING_ABORT.
++			 */
++			j1939_session_deactivate_activate_next(session);
++		}
+ 
+ 		return -EBUSY;
+ 	}
+-- 
+2.56.0
+

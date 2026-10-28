@@ -1,0 +1,28 @@
+From d76d516103c6ac11c8ad9158e0e1c0e19075aeb0 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:41:13 +0000
+Subject: [PATCH] cve: CVE-2025-68336
+ (8e5b2cf10844402054b52b489b525dc30cc16908)
+
+---
+ kernel/locking/spinlock_debug.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/locking/spinlock_debug.c b/kernel/locking/spinlock_debug.c
+index 4f002cd1c7d8..9e4ce1c2a5a4 100644
+--- a/kernel/locking/spinlock_debug.c
++++ b/kernel/locking/spinlock_debug.c
+@@ -188,8 +188,8 @@ void do_raw_read_unlock(rwlock_t *lock)
+ static inline void debug_write_lock_before(rwlock_t *lock)
+ {
+ 	RWLOCK_BUG_ON(lock->magic != RWLOCK_MAGIC, lock, "bad magic");
+-	RWLOCK_BUG_ON(lock->owner == current, lock, "recursion");
+-	RWLOCK_BUG_ON(lock->owner_cpu == raw_smp_processor_id(),
++	RWLOCK_BUG_ON(READ_ONCE(lock->owner) == current, lock, "recursion");
++	RWLOCK_BUG_ON(READ_ONCE(lock->owner_cpu) == raw_smp_processor_id(),
+ 							lock, "cpu recursion");
+ }
+ 
+-- 
+2.56.0
+

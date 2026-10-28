@@ -1,0 +1,33 @@
+From d1d3d8f247b5b9a421d7ac9eff12597d7283ab7c Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:14:05 +0000
+Subject: [PATCH] cve: CVE-2026-64373
+ (6d5dd354c37abaf4d60400c55c71f23ba2b33639)
+
+---
+ drivers/cpufreq/cpufreq.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/cpufreq/cpufreq.c b/drivers/cpufreq/cpufreq.c
+index 0893f1658123..a2c8381eeb05 100755
+--- a/drivers/cpufreq/cpufreq.c
++++ b/drivers/cpufreq/cpufreq.c
+@@ -1920,6 +1920,7 @@ void cpufreq_suspend(void)
+ 	if (!cpufreq_driver)
+ 		return;
+ 
++	cpus_read_lock();
+ 	if (!has_target() && !cpufreq_driver->suspend)
+ 		goto suspend;
+ 
+@@ -1939,6 +1940,7 @@ void cpufreq_suspend(void)
+ 
+ suspend:
+ 	cpufreq_suspended = true;
++	cpus_read_unlock();
+ }
+ 
+ /**
+-- 
+2.56.0
+

@@ -1,0 +1,50 @@
+From 4f8c425c56b0f8aa3ad48dbec4d20de3055f12b3 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:14:41 +0000
+Subject: [PATCH] cve: CVE-2026-89741
+ (8b998c171ed875e402e1fd1c5cd619e4ca05e9c1)
+
+---
+ drivers/media/v4l2-core/v4l2-dev.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/media/v4l2-core/v4l2-dev.c b/drivers/media/v4l2-core/v4l2-dev.c
+index 3ed993bedb14..2d47d8d8f459 100644
+--- a/drivers/media/v4l2-core/v4l2-dev.c
++++ b/drivers/media/v4l2-core/v4l2-dev.c
+@@ -1010,25 +1010,25 @@ int __video_register_device(struct video_device *vdev,
+ 	vdev->dev.class = &video_class;
+ 	vdev->dev.devt = MKDEV(VIDEO_MAJOR, vdev->minor);
+ 	vdev->dev.parent = vdev->dev_parent;
+-	vdev->dev.release = v4l2_device_release;
+ 	dev_set_name(&vdev->dev, "%s%d", name_base, vdev->num);
+-
+-	/* Increase v4l2_device refcount */
+-	v4l2_device_get(vdev->v4l2_dev);
+-
+ 	mutex_lock(&videodev_lock);
+ 	ret = device_register(&vdev->dev);
+ 	if (ret < 0) {
+ 		mutex_unlock(&videodev_lock);
+ 		pr_err("%s: device_register failed\n", __func__);
+-		put_device(&vdev->dev);
+-		return ret;
++		goto cleanup;
+ 	}
++	/* Register the release callback that will be called when the last
++	   reference to the device goes away. */
++	vdev->dev.release = v4l2_device_release;
+ 
+ 	if (nr != -1 && nr != vdev->num && warn_if_nr_in_use)
+ 		pr_warn("%s: requested %s%d, got %s\n", __func__,
+ 			name_base, nr, video_device_node_name(vdev));
+ 
++	/* Increase v4l2_device refcount */
++	v4l2_device_get(vdev->v4l2_dev);
++
+ 	/* Part 5: Register the entity. */
+ 	ret = video_register_media_controller(vdev);
+ 
+-- 
+2.56.0
+

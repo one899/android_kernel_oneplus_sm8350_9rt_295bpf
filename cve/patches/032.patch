@@ -1,0 +1,45 @@
+From 3ea14f124a65866e0d73e9ed2d7248b498fdaaf4 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 04:06:18 +0000
+Subject: [PATCH] cve: CVE-2025-71079
+ (2e0831e9fc46a06daa6d4d8d57a2738e343130c3)
+
+---
+ net/nfc/core.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/net/nfc/core.c b/net/nfc/core.c
+index fef112fb4993..321ad7d97bc3 100644
+--- a/net/nfc/core.c
++++ b/net/nfc/core.c
+@@ -1147,6 +1147,7 @@ EXPORT_SYMBOL(nfc_register_device);
+ void nfc_unregister_device(struct nfc_dev *dev)
+ {
+ 	int rc;
++	struct rfkill *rfk = NULL;
+ 
+ 	pr_debug("dev_name=%s\n", dev_name(&dev->dev));
+ 
+@@ -1157,13 +1158,17 @@ void nfc_unregister_device(struct nfc_dev *dev)
+ 
+ 	device_lock(&dev->dev);
+ 	if (dev->rfkill) {
+-		rfkill_unregister(dev->rfkill);
+-		rfkill_destroy(dev->rfkill);
++		rfk = dev->rfkill;
+ 		dev->rfkill = NULL;
+ 	}
+ 	dev->shutting_down = true;
+ 	device_unlock(&dev->dev);
+ 
++	if (rfk) {
++		rfkill_unregister(rfk);
++		rfkill_destroy(rfk);
++	}
++
+ 	if (dev->ops->check_presence) {
+ 		del_timer_sync(&dev->check_pres_timer);
+ 		cancel_work_sync(&dev->check_pres_work);
+-- 
+2.56.0
+

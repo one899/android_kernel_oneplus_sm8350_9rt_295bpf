@@ -1,0 +1,24 @@
+From ebe774c7c29ef78d2016e36fd204bff5b8eba240 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:43 +0000
+Subject: [PATCH] cve: s390/ctcm: Fix double-kfree
+
+---
+ drivers/s390/net/ctcm_mpc.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/s390/net/ctcm_mpc.c b/drivers/s390/net/ctcm_mpc.c
+index d766002bc5be..e76b6e7f80ac 100644
+--- a/drivers/s390/net/ctcm_mpc.c
++++ b/drivers/s390/net/ctcm_mpc.c
+@@ -712,7 +712,6 @@ static void mpc_rcvd_sweep_req(struct mpcg_info *mpcginfo)
+ 
+ 	grp->sweep_req_pend_num--;
+ 	ctcmpc_send_sweep_resp(ch);
+-	kfree(mpcginfo);
+ 	return;
+ }
+ 
+-- 
+2.56.0
+

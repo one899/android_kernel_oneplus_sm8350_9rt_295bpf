@@ -1,0 +1,26 @@
+From 70bd8b266a6fb5923b5de79ff069bd79a92629a0 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:41:22 +0000
+Subject: [PATCH] cve: CVE-2026-31418
+ (c098ff857e7ca923539164af5b3c2fe3e8f8afaf)
+
+---
+ net/netfilter/ipset/ip_set_hash_gen.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/netfilter/ipset/ip_set_hash_gen.h b/net/netfilter/ipset/ip_set_hash_gen.h
+index cbca3f850cdd..61aaa22c1835 100644
+--- a/net/netfilter/ipset/ip_set_hash_gen.h
++++ b/net/netfilter/ipset/ip_set_hash_gen.h
+@@ -1108,7 +1108,7 @@ mtype_del(struct ip_set *set, void *value, const struct ip_set_ext *ext,
+ 			if (!test_bit(i, n->used))
+ 				k++;
+ 		}
+-		if (n->pos == 0 && k == 0) {
++		if (k == n->pos) {
+ 			t->hregion[r].ext_size -= ext_size(n->size, dsize);
+ 			rcu_assign_pointer(hbucket(t, key), NULL);
+ 			kfree_rcu(n, rcu);
+-- 
+2.56.0
+

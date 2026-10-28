@@ -1,0 +1,95 @@
+001.patch    cve: media: vivid: Change the siize of the composing
+002.patch    cve: net/sched: Always pass notifications when child class becomes empty
+003.patch    cve: nfs: Clean up /proc/net/rpc/nfs when nfs_fs_proc_net_init() fails.
+004.patch    cve: Bluetooth: fix use-after-free in device_for_each_child()
+005.patch    cve: benet: fix BUG when creating VFs
+006.patch    cve: Bluetooth: Fix use-after-free in l2cap_sock_cleanup_listen()
+007.patch    cve: net: fec: Fix possible NPD in fec_enet_phy_reset_after_clk_enable()
+008.patch    cve: fbcon: fix integer overflow in fbcon_do_set_font
+009.patch    cve: i40e: fix validation of VF state in get resources
+010.patch    cve: pps: fix warning in pps_register_cdev when register device fails
+011.patch    cve: scsi: pm80xx: Fix array-index-out-of-of-bounds on rmmod
+012.patch    cve: tcp: Don't call reqsk_fastopen_remove() in tcp_conn_request().
+013.patch    cve: s390/ctcm: Fix double-kfree
+014.patch    cve: Bluetooth: bcsp: receive data only if registered
+015.patch    cve: usb: gadget: f_fs: Fix epfile null pointer access after ep enable.
+016.patch    cve: jfs: fix uninitialized waitqueue in transaction manager
+017.patch    cve: ipv4: route: Prevent rt_bind_exception() from rebinding stale fnhe
+018.patch    cve: usbnet: Prevents free active kevent
+019.patch    cve: clone_private_mnt userns CAP_SYS_ADMIN (CVE-2025-38499)
+020.patch    cve: tipc tipc_net_finalize rtnl_lock (CVE-2025-40280)
+021.patch    cve: CVE-2026-80792 (75e0a544ebe9af663ef53ca21e9e9185c51fb54a)
+022.patch    cve: CVE-2026-64047 (73963a375885d5ccb7def39fd0b4f542e0f343dd)
+023.patch    cve: CVE-2026-43024 (2f7f825a548be55420f0f5f716f6c27b9d312d3f)
+024.patch    cve: CVE-2026-45873 (7ca5813e1b21ef300e04593f47b073ef3217aac6)
+025.patch    cve: CVE-2026-72434 (c940d1b96248c3081b664ede5418078bdc7c8c07)
+026.patch    cve: CVE-2026-31570 (e7c99348b0612b2bc02d5ce6ff9873261cc7605f)
+027.patch    cve: CVE-2026-23362 (0904037e713f787d1376e1d349c3bdf6c3105881)
+028.patch    cve: CVE-2026-22997 (a73e7d7e346dae1c22dc3e95b02ca464b12daf2c)
+029.patch    cve: CVE-2026-80707 (348818277a3646d5b9fa60c9d20c00dc4bc86832)
+030.patch    cve: CVE-2025-71182 (ebb0dfd718dd31c8d3600612ca4b7207ec3d923a)
+031.patch    cve: CVE-2026-80799 (2c1456fe09ab1a5a9fe1d8339ca6d509589b56e1)
+032.patch    cve: CVE-2025-71079 (2e0831e9fc46a06daa6d4d8d57a2738e343130c3)
+033.patch    cve: CVE-2025-71086 (819fb41ae54960f66025802400c9d3935eef4042)
+034.patch    cve: CVE-2026-68137 (db6b04f6d65549bb1c7bc8e64a92e7b7d03be676)
+035.patch    cve: 批次2 手工补丁（qrtr/tls/fq_codel/objref/j1939）
+036.patch    cve: 批次2 手工补丁（tls 改为基于 64047 后的版本）
+037.patch    cve: batch2 manual backports (qrtr/tls/fq_codel/objref/j1939)
+038.patch    cve: 批次3+4 手工补丁（ext4 xattr/quota/ip6_gre/af_packet/cfg80211）
+039.patch    cve: 批次3+4 手工补丁（quota/af_packet/cfg80211）
+040.patch    cve: 批次3+4 手工补丁（quota/af_packet）
+041.patch    cve: CVE-2025-68239 (54274ff90488b6c0f595a6518faed3cf0bc966eb)
+042.patch    cve: CVE-2025-68289 (a9985a88b2fc29fbe1657fe8518908e261d6889c)
+043.patch    cve: CVE-2025-68820 (b72a3476f0c97d02f63a6e9fff127348d55436f6)
+044.patch    cve: CVE-2026-31617 (068a7f2749fff6462a0a908ec415b885fe430f50)
+045.patch    cve: CVE-2026-31755 (3cf0580a09d417eab41ce914a11f9cde3a121871)
+046.patch    cve: CVE-2026-43432 (1e800e26d54ccf2ddf2ea6d6cbe021c804d8aa62)
+047.patch    cve: CVE-2026-46046 (dd98a5603a212ea9c96c6982ccdbcc748fdb9a56)
+048.patch    cve: CVE-2026-53050 (2bdc80f4619411e5bd4a3ef23f51e14021ed457c)
+049.patch    cve: CVE-2026-68368 (35d15bbaec0557330e774ec31412ef508de6e0e0)
+050.patch    cve: CVE-2026-80808 (119a2f053242ed75bdd2ebc95baf3ae7db6ccacf)
+051.patch    cve: CVE-2026-89736 (a7ecd1a04f4f485d7be6443d0f0b2c61a800cb82)
+052.patch    cve: CVE-2025-37833 (52a266008a9450e4222994666b4510c026fbb03c)
+053.patch    cve: CVE-2025-40021 (f3ac1f4eaba58e57943efa3e8b8d71fa7aab0abf)
+054.patch    cve: CVE-2025-40080 (c365e8f20f4201d873a70385bd919f0fb531e960)
+055.patch    cve: CVE-2025-68336 (8e5b2cf10844402054b52b489b525dc30cc16908)
+056.patch    cve: CVE-2026-23229 (552475d0b6cece73a52c0fa5faa0ce45e99df74b)
+057.patch    cve: CVE-2026-31418 (c098ff857e7ca923539164af5b3c2fe3e8f8afaf)
+058.patch    cve: CVE-2026-43015 (bf64cae913cdd4821f13d5d1d68900c0891bef69)
+059.patch    cve: CVE-2026-43232 (cac048ebfbb92d91d719f74b59177cb70a7633b8)
+060.patch    cve: CVE-2026-52984 (0f875d52db4c921da610e481b72f03cc82fdcb72)
+061.patch    cve: CVE-2026-52985 (175556c049eaec14efde8c6475e763b7579b9de7)
+062.patch    cve: CVE-2026-53266 (bf84ad7c7a9ede46e31afaa41a1ba06a159e8c87)
+063.patch    cve: CVE-2026-53273 (416259cb5bffecaaae5f76539deb535a8c1b2c34)
+064.patch    cve: CVE-2026-64312 (81ce16d938db9b88cdc231522c0358395ae8c6b5)
+065.patch    cve: CVE-2026-68288 (d427b152b663cb2b19fcd449d792e17edbe4a938)
+066.patch    cve: CVE-2026-72120 (8357255e56dc1aaa437e3c53ee9385de984e0d57)
+067.patch    cve: CVE-2026-72121 (96994180bd7b248b0cc698afe926e23fc1bda59b)
+068.patch    cve: CVE-2026-74284 (a425c82ff06cda5165e0de3de8c2a445ec1f863e)
+069.patch    cve: CVE-2026-74492 (6f13f4d52d06986c18f12e8bffaab944dd27ceab)
+070.patch    cve: CVE-2026-74581 (90c57310e266eb94e4a80d6b15a9ca131d2e82cb)
+071.patch    cve: CVE-2026-74632 (9c0fd1802ce06d7709f0bae4edeb085288f28764)
+072.patch    cve: CVE-2026-74684 (61dd022c55c7307ec119e5672cb141cccbecf3b1)
+073.patch    cve: CVE-2026-80565 (dbca8b798caf47fb2799a26dd09c9ad66305883d)
+074.patch    cve: batch3+4 manual backports
+075.patch    cve: 批次5 手工补丁（8 条 fuzzy）
+076.patch    cve: 批次5 手工补丁（去掉 74302/46083，两条需重写）
+077.patch    cve: CVE-2026-23318 (82a7d0a1b88798de1a609130080ce0c65dd869e9)
+078.patch    cve: CVE-2026-31498 (9760b83cfd24b38caee663f429011a0dd6064fa9)
+079.patch    cve: CVE-2026-31581 (e719232f4552e29de8027a83918ea94434be87af)
+080.patch    cve: CVE-2026-31701 (493b3a682ededc804555755f5d2193201339612d)
+081.patch    cve: CVE-2026-43061 (8190f9ab6ad90cb97652adbebd238b874a4ef70d)
+082.patch    cve: CVE-2026-43211 (ebb27b7399ab8b9eb1f792b329aa5f6250c590d4)
+083.patch    cve: CVE-2026-46321 (0a6f46a9332ad6958992d64d3b3a81a80b2ca940)
+084.patch    cve: CVE-2026-52963 (e2f1260a056eb3215c13c48c5378f3e4112dc3af)
+085.patch    cve: CVE-2026-63948 (50f1bcaaaa3a80bb1c3472044bc146e8d49d51ee)
+086.patch    cve: CVE-2026-64373 (6d5dd354c37abaf4d60400c55c71f23ba2b33639)
+087.patch    cve: CVE-2026-68091 (5a7ca028facf04921b2c1c2e4d1ee7f282510555)
+088.patch    cve: CVE-2026-68117 (efebc23e9b29e3e5a9e2127dd066929f7f0d315e)
+089.patch    cve: CVE-2026-72428 (e62268e695075a481a6c4feeb022c19cf57422a6)
+090.patch    cve: CVE-2026-72450 (87a5bbccc7ff4edb3f42fea387124237d2ba91ee)
+091.patch    cve: CVE-2026-74519 (e3cfb22bad363bebcfd55d909e12d499cb8c5490)
+092.patch    cve: CVE-2026-80591 (7dfac47e4189692f35230f3064acf2540e6d75fe)
+093.patch    cve: CVE-2026-89562 (cb1afd087aedc90e5274537e4fb9bf3f98e5afdb)
+094.patch    cve: CVE-2026-89741 (8b998c171ed875e402e1fd1c5cd619e4ca05e9c1)
+095.patch    cve: CVE-2026-89947 (c86214e6178c38a0eff39110a4e92b824f5dd403)

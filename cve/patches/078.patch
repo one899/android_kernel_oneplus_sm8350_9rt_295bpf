@@ -1,0 +1,51 @@
+From 3c604e61a927ee6cfc7ab953519808d4e5a36022 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:12:56 +0000
+Subject: [PATCH] cve: CVE-2026-31498
+ (9760b83cfd24b38caee663f429011a0dd6064fa9)
+
+---
+ net/bluetooth/l2cap_core.c | 19 ++++++++++++-------
+ 1 file changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/net/bluetooth/l2cap_core.c b/net/bluetooth/l2cap_core.c
+index dc9edf8fc336..bf0fffbc986b 100644
+--- a/net/bluetooth/l2cap_core.c
++++ b/net/bluetooth/l2cap_core.c
+@@ -2384,6 +2384,9 @@ static int l2cap_segment_sdu(struct l2cap_chan *chan,
+ 	/* Remote device may have requested smaller PDUs */
+ 	pdu_len = min_t(size_t, pdu_len, chan->remote_mps);
+ 
++	if (!pdu_len)
++		return -EINVAL;
++
+ 	if (len <= pdu_len) {
+ 		sar = L2CAP_SAR_UNSEGMENTED;
+ 		sdu_len = 0;
+@@ -4210,14 +4213,16 @@ static inline int l2cap_config_req(struct l2cap_conn *conn,
+ 	if (test_bit(CONF_INPUT_DONE, &chan->conf_state)) {
+ 		set_default_fcs(chan);
+ 
+-		if (chan->mode == L2CAP_MODE_ERTM ||
+-		    chan->mode == L2CAP_MODE_STREAMING)
+-			err = l2cap_ertm_init(chan);
++		if (chan->state != BT_CONNECTED) {
++			if (chan->mode == L2CAP_MODE_ERTM ||
++			    chan->mode == L2CAP_MODE_STREAMING)
++				err = l2cap_ertm_init(chan);
+ 
+-		if (err < 0)
+-			l2cap_send_disconn_req(chan, -err);
+-		else
+-			l2cap_chan_ready(chan);
++			if (err < 0)
++				l2cap_send_disconn_req(chan, -err);
++			else
++				l2cap_chan_ready(chan);
++		}
+ 
+ 		goto unlock;
+ 	}
+-- 
+2.56.0
+

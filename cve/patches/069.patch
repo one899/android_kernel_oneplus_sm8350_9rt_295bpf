@@ -1,0 +1,26 @@
+From f5eafcbd079226c7dc7db2adc7d5148028a73286 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:42:12 +0000
+Subject: [PATCH] cve: CVE-2026-74492
+ (6f13f4d52d06986c18f12e8bffaab944dd27ceab)
+
+---
+ net/netfilter/ipset/ip_set_hash_gen.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/netfilter/ipset/ip_set_hash_gen.h b/net/netfilter/ipset/ip_set_hash_gen.h
+index 61aaa22c1835..22f79835e294 100644
+--- a/net/netfilter/ipset/ip_set_hash_gen.h
++++ b/net/netfilter/ipset/ip_set_hash_gen.h
+@@ -986,7 +986,7 @@ mtype_add(struct ip_set *set, void *value, const struct ip_set_ext *ext,
+ #endif
+ 	if (SET_WITH_COUNTER(set))
+ 		ip_set_init_counter(ext_counter(data, set), ext);
+-	if (SET_WITH_COMMENT(set))
++	if (SET_WITH_COMMENT(set) && !ext->target)
+ 		ip_set_init_comment(set, ext_comment(data, set), ext);
+ 	if (SET_WITH_SKBINFO(set))
+ 		ip_set_init_skbinfo(ext_skbinfo(data, set), ext);
+-- 
+2.56.0
+
