@@ -234,9 +234,8 @@ jobs:
               sed -i '1i #ifndef OPLUS_CHG_OP_DEF\n#define OPLUS_CHG_OP_DEF 1\n#endif' "$f"
           done
           echo "OP_DEF files: $(grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg | wc -l)"
-          echo "=== 重新生成配置 ==="
-          make O=out CC="ccache clang" LLVM=1 olddefconfig
-          grep -E 'CONFIG_OPLUS_CHG=|CONFIG_OPLUS_CHG_V2|CONFIG_QPNP_QG|CONFIG_QCOM_POWER_SUPPLY|CONFIG_LOG_BUF_SHIFT' out/.config || true
+          echo "=== 配置已写入，编译时会自动 syncconfig ==="
+          grep -E 'CONFIG_OPLUS_CHG=|CONFIG_OPLUS_CHG_V2=|CONFIG_QPNP_QG=|CONFIG_QCOM_POWER_SUPPLY=|CONFIG_LOG_BUF_SHIFT=' out/.config || true
       - name: Compile Kernel
         run: |
           export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
