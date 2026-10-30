@@ -183,6 +183,31 @@ jobs:
           cp -f "$SRC/target/aarch64-linux-android/release/ksuinit" "$GITHUB_WORKSPACE/ksuinit-custom"
           ls -l "$GITHUB_WORKSPACE/ksuinit-custom"
 
+      - name: 9 Pro charging fixes (only on 9p branch)
+        if: github.ref_name == 'test/9pro-charging'
+        run: |
+          set -x
+          cd kernel/msm-5.4
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_V2 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_VOOCPHY_CHGLIB || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_ADSP_VOOCPHY || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_AP_VOOCPHY || true
+          ./scripts/config --file out/.config -d CONFIG_OPLUS_CHG_OP9RT_PMIC_VOOCPHY || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_TEST_KIT || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_ADSP_VOOCPHY || true
+          # 强制编 9 Pro 充电框架
+          sed -i 's|+= oplus/$|+= oplus_chg/|' drivers/power/Makefile || true
+          # oplus_chg_voter.c 与 qcom/pmic-voter.c 符号重复（find_votable 等），从 Makefile 移除
+          sed -i '/oplus_chg_voter\\.o/d' drivers/power/oplus_chg/Makefile || true
+          # oplus_charger.h 里 15 处 #ifdef OPLUS_CHG_OP_DEF 依赖它
+          for f in $(find drivers/power/oplus_chg -name '*.c' -o -name '*.h'); do
+            grep -q 'define OPLUS_CHG_OP_DEF' "$f" 2>/dev/null || \
+              sed -i '1i #ifndef OPLUS_CHG_OP_DEF\n#define OPLUS_CHG_OP_DEF 1\n#endif' "$f"
+          done
+          echo "OPLUS_CHG_OP_DEF files: $(grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg | wc -l)"
+          grep -n 'oplus_chg/' drivers/power/Makefile || true
+          grep -c 'oplus_chg_voter' drivers/power/oplus_chg/Makefile || true
       - name: Compile Kernel
         run: |
           export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
