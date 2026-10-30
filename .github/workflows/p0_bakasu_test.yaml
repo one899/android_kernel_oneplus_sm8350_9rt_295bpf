@@ -235,8 +235,13 @@ jobs:
               sed -i '1i #ifndef OPLUS_CHG_OP_DEF\n#define OPLUS_CHG_OP_DEF 1\n#endif' "$f"
           done
           echo "OP_DEF files: $(grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg | wc -l)"
-          echo "=== 配置已写入，编译时会自动 syncconfig ==="
-          grep -E 'CONFIG_OPLUS_CHG=|CONFIG_OPLUS_CHG_V2=|CONFIG_QPNP_QG=|CONFIG_QCOM_POWER_SUPPLY=|CONFIG_LOG_BUF_SHIFT=' out/.config || true
+          echo "=== olddefconfig（不带 LLVM=1，用系统 ld 通过 Kconfig 链接器检查）==="
+          make O=out CC=clang olddefconfig || make O=out olddefconfig || true
+          echo "=== 生效后的关键配置 ==="
+          grep -E 'CONFIG_OPLUS_CHG=|CONFIG_OPLUS_CHG_V2=|CONFIG_QPNP_QG=|CONFIG_QPNP_SMB5=|CONFIG_QCOM_POWER_SUPPLY=|CONFIG_POWER_SUPPLY=|CONFIG_LOG_BUF_SHIFT=' out/.config || true
+          echo "=== pmic-voter 是否会被编译 ==="
+          grep -n 'pmic-voter' drivers/power/supply/qcom/Makefile | head -5
+          grep -nE 'qcom-qpnp-qg|COPY_QCOM|obj-\$\(CONFIG_QPNP_QG\)' drivers/power/supply/qcom/Makefile | head -5
       - name: Compile Kernel
         run: |
           export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
