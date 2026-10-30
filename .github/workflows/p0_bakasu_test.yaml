@@ -378,8 +378,8 @@ jobs:
           ./magiskboot cpio ramdisk.cpio "ls" 2>/dev/null | grep -E "(init$|kernelsu)" || true
           ./magiskboot repack base.img new-boot.img
           md5sum new-boot.img
-          cp new-boot.img "$GITHUB_WORKSPACE/boot-lkm-9rt-${BUILD_DATE}.img"
-          cd "$GITHUB_WORKSPACE" && ls -l boot-lkm-9rt-*.img
+          cp new-boot.img "$GITHUB_WORKSPACE/boot-lkm-9pro-${BUILD_DATE}.img"
+          cd "$GITHUB_WORKSPACE" && ls -l boot-lkm-9pro-*.img
       - name: P0 - dump LKM info
         run: |
           set -x
@@ -429,7 +429,7 @@ jobs:
           git add -f .github/ksu_pin.txt
           git commit -m "ci: pin KSU $(cat ksu_pin.txt) (kernel build ${GITHUB_RUN_ID})" || true
           git push origin HEAD:p0/lkm || echo "push skipped"
-      - name: Publish release (lkm-latest)
+      - name: Publish release (lkm-latest-9pro)
         if: success() && github.ref_name == 'p0/lkm' && (github.event_name != 'workflow_dispatch' || inputs.upload == true)
         continue-on-error: true
         env:
@@ -438,20 +438,20 @@ jobs:
           set -x
           cd "$GITHUB_WORKSPACE"
           R="${{ github.repository }}"
-          BOOT=$(ls boot-lkm-9rt-*.img 2>/dev/null | head -1 || true)
+          BOOT=$(ls boot-lkm-9pro-*.img 2>/dev/null | head -1 || true)
           KO=$(ls kernelsu-stripped.ko 2>/dev/null | head -1 || true)
           if [ -z "$BOOT" ]; then echo "no boot, skip"; exit 0; fi
           echo "BOOT=$BOOT KO=$KO"
           ls -l "$BOOT" ${KO:-}
-          gh release view lkm-latest --repo "$R" >/dev/null 2>&1 || gh release create lkm-latest --repo "$R" --title "LKM latest" --notes "auto published by CI" || true
-          cp -f "$BOOT" boot-lkm-9rt.img
-          gh release upload lkm-latest --repo "$R" boot-lkm-9rt.img --clobber || true
-          gh release upload lkm-latest --repo "$R" "$BOOT" --clobber || true
-          if [ -n "$KO" ]; then gh release upload lkm-latest --repo "$R" "$KO" --clobber || true; fi
-          sha256sum boot-lkm-9rt.img > SHA256SUMS
+          gh release view lkm-latest-9pro --repo "$R" >/dev/null 2>&1 || gh release create lkm-latest-9pro --repo "$R" --title "LKM latest" --notes "auto published by CI" || true
+          cp -f "$BOOT" boot-lkm-9pro.img
+          gh release upload lkm-latest-9pro --repo "$R" boot-lkm-9pro.img --clobber || true
+          gh release upload lkm-latest-9pro --repo "$R" "$BOOT" --clobber || true
+          if [ -n "$KO" ]; then gh release upload lkm-latest-9pro --repo "$R" "$KO" --clobber || true; fi
+          sha256sum boot-lkm-9pro.img > SHA256SUMS
           if [ -n "$KO" ]; then sha256sum "$KO" >> SHA256SUMS; fi
-          gh release upload lkm-latest --repo "$R" SHA256SUMS --clobber || true
-          gh release view lkm-latest --repo "$R" --json assets -q ".assets[].name" || true
+          gh release upload lkm-latest-9pro --repo "$R" SHA256SUMS --clobber || true
+          gh release view lkm-latest-9pro --repo "$R" --json assets -q ".assets[].name" || true
       - name: Upload to Cloudflare R2
         if: always() && github.ref_name == 'p0/lkm' && (github.event_name != 'workflow_dispatch' || inputs.upload == true)
         continue-on-error: true
@@ -464,13 +464,13 @@ jobs:
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "R2 not configured, skip"; exit 0; fi
           cd "$GITHUB_WORKSPACE"
           KO=$(ls kernelsu-stripped.ko 2>/dev/null | head -1 || true)
-          BOOT=$(ls boot-lkm-9rt-*.img 2>/dev/null | head -1 || true)
+          BOOT=$(ls boot-lkm-9pro-*.img 2>/dev/null | head -1 || true)
           if [ -n "$KO" ]; then
             npx -y wrangler@latest r2 object put "$R2_BUCKET/kernelsu-stripped.ko" --file "$KO" --remote || true
           fi
           if [ -n "$BOOT" ]; then
-            cp -f "$BOOT" boot-lkm-9rt.img
-            npx -y wrangler@latest r2 object put "$R2_BUCKET/boot-lkm-9rt.img" --file boot-lkm-9rt.img --remote || true
+            cp -f "$BOOT" boot-lkm-9pro.img
+            npx -y wrangler@latest r2 object put "$R2_BUCKET/boot-lkm-9pro.img" --file boot-lkm-9pro.img --remote || true
           fi
           # ==== 版本清单：小程序用它和本地对比 ====
           KSUCOUNT=0
@@ -483,9 +483,9 @@ jobs:
           BDATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           KO_SHA=$(sha256sum kernelsu-stripped.ko 2>/dev/null | cut -d" " -f1 || echo "")
           KO_SZ=$(stat -c%s kernelsu-stripped.ko 2>/dev/null || echo 0)
-          BOOT_SHA=$(sha256sum boot-lkm-9rt.img 2>/dev/null | cut -d" " -f1 || echo "")
-          BOOT_SZ=$(stat -c%s boot-lkm-9rt.img 2>/dev/null || echo 0)
-          printf '{"ko":{"version":"%s","build_epoch":%s,"build_date":"%s","sha256":"%s","size":%s,"name":"kernelsu-stripped.ko"},"boot":{"version":"%s","build_epoch":%s,"build_date":"%s","sha256":"%s","size":%s,"name":"boot-lkm-9rt.img"}}' "$KSVER" "$EPOCH" "$BDATE" "$KO_SHA" "$KO_SZ" "$KREL" "$EPOCH" "$BDATE" "$BOOT_SHA" "$BOOT_SZ" > manifest.json
+          BOOT_SHA=$(sha256sum boot-lkm-9pro.img 2>/dev/null | cut -d" " -f1 || echo "")
+          BOOT_SZ=$(stat -c%s boot-lkm-9pro.img 2>/dev/null || echo 0)
+          printf '{"device":"lemonadep","model":"LE2120","ko":{"version":"%s","build_epoch":%s,"build_date":"%s","sha256":"%s","size":%s,"name":"kernelsu-stripped.ko"},"boot":{"version":"%s","build_epoch":%s,"build_date":"%s","sha256":"%s","size":%s,"name":"boot-lkm-9pro.img"}}' "$KSVER" "$EPOCH" "$BDATE" "$KO_SHA" "$KO_SZ" "$KREL" "$EPOCH" "$BDATE" "$BOOT_SHA" "$BOOT_SZ" > manifest.json
           cat manifest.json
           npx -y wrangler@latest r2 object put "$R2_BUCKET/manifest.json" --file manifest.json --remote --content-type application/json || true
           echo "=== r2 list ==="
@@ -503,4 +503,4 @@ jobs:
             p0_report.txt
             kernel/msm-5.4/out/arch/arm64/boot/Image
             kernel/msm-5.4/out/arch/arm64/boot/Image.gz
-            boot-lkm-9rt-*.img
+            boot-lkm-9pro-*.img
