@@ -14,19 +14,20 @@ jobs:
         with:
           ref: test/9pro-charging
           fetch-depth: 0
-      - name: Trial merge
+      - name: Merge p0/lkm and drop old app source
         run: |
           set -x
           git config user.name merge-bot
           git config user.email ci@users.noreply.github.com
           git fetch origin p0/lkm
-          git merge --no-commit --no-ff origin/p0/lkm || true
-          echo "=== 冲突文件 ==="
-          git status --porcelain | awk '$1 ~ /^(UU|AA|DD|AU|UA|DU|UD)$/ {print $2}' | tee /tmp/conflicts.txt
-          wc -l /tmp/conflicts.txt
-          echo "=== 未冲突变更数 ==="
-          git status --porcelain | wc -l
-      - name: Abort (trial only)
+          git merge --no-ff -m "merge: 合入 LKM 内核模块支持 + 5.4.295 CVE 修复（来自 p0/lkm，未包含更新器源码）" origin/p0/lkm
+          git rm -r --cached .github/app >/dev/null 2>&1 || true
+          rm -rf .github/app
+          git add -A
+          git commit -qm "chore: 移除旧的内核更新器源码（已迁移到独立仓库 ColorArchive-Updater）" || echo "nothing to commit"
+          git log --oneline -3
+      - name: Push
         run: |
-          git merge --abort || true
-          echo "trial done"
+          git push origin HEAD:test/9pro-charging || echo push-failed
+          echo "=== 分支头 ==="
+          git log --oneline -1
