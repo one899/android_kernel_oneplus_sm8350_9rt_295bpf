@@ -226,8 +226,9 @@ jobs:
           ./scripts/config --file out/.config -e CONFIG_TYPEC_UCSI || true
           # 强制编 9 Pro 充电框架
           sed -i 's|+= oplus/$|+= oplus_chg/|' drivers/power/Makefile || true
-          # oplus_chg_voter.c 与 qcom/pmic-voter.c 符号重复，移除
-          sed -i '/oplus_chg_voter\\.o/d' drivers/power/oplus_chg/Makefile || true
+          # 注意：保留 oplus_chg_voter.o —— 9RT defconfig 没编 qcom/pmic-voter.c，
+          # vote/create_votable/find_votable 等符号由 oplus_chg_voter.c 提供
+          grep -n 'oplus_chg_voter' drivers/power/oplus_chg/Makefile || echo "  (voter 未在 Makefile 中)"
           # oplus_charger.h 依赖 OPLUS_CHG_OP_DEF
           for f in $(find drivers/power/oplus_chg -name '*.c' -o -name '*.h'); do
             grep -q 'define OPLUS_CHG_OP_DEF' "$f" 2>/dev/null || \
