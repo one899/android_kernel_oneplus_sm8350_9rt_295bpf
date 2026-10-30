@@ -1,0 +1,277 @@
+From 6700cb3402cc1769033894bf401a303800860cde Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 04:26:06 +0000
+Subject: [PATCH] cve: batch2 manual backports (qrtr/tls/fq_codel/objref/j1939)
+
+---
+ net/can/j1939/j1939-priv.h |  1 +
+ net/can/j1939/main.c       |  3 +++
+ net/can/j1939/socket.c     | 32 ++++++++++++++++++++++++++++++
+ net/netfilter/nft_objref.c | 39 +++++++++++++++++++++++++++++++++++++
+ net/qrtr/qrtr.c            |  2 +-
+ net/sched/sch_fq_codel.c   | 40 ++++++++++++++++++++++++++++++++++++--
+ net/tls/tls_sw.c           | 14 +++++++------
+ 7 files changed, 122 insertions(+), 9 deletions(-)
+
+diff --git a/net/can/j1939/j1939-priv.h b/net/can/j1939/j1939-priv.h
+index 9ac2a10b1826..81a769129779 100644
+--- a/net/can/j1939/j1939-priv.h
++++ b/net/can/j1939/j1939-priv.h
+@@ -208,6 +208,7 @@ void j1939_priv_get(struct j1939_priv *priv);
+ 
+ /* notify/alert all j1939 sockets bound to ifindex */
+ void j1939_sk_netdev_event_netdown(struct j1939_priv *priv);
++void j1939_sk_netdev_event_unregister(struct j1939_priv *priv);
+ int j1939_cancel_active_session(struct j1939_priv *priv, struct sock *sk);
+ void j1939_tp_init(struct j1939_priv *priv);
+ 
+diff --git a/net/can/j1939/main.c b/net/can/j1939/main.c
+index 548b2b6e6806..9ef7e479effb 100644
+--- a/net/can/j1939/main.c
++++ b/net/can/j1939/main.c
+@@ -378,6 +378,9 @@ static int j1939_netdev_notify(struct notifier_block *nb,
+ 		j1939_sk_netdev_event_netdown(priv);
+ 		j1939_ecu_unmap_all(priv);
+ 		break;
++	case NETDEV_UNREGISTER:
++		j1939_sk_netdev_event_unregister(priv);
++		break;
+ 	}
+ 
+ notify_put:
+diff --git a/net/can/j1939/socket.c b/net/can/j1939/socket.c
+index 34dae93eb6ae..6dd41c599fc1 100644
+--- a/net/can/j1939/socket.c
++++ b/net/can/j1939/socket.c
+@@ -1226,6 +1226,38 @@ void j1939_sk_netdev_event_netdown(struct j1939_priv *priv)
+ 	spin_unlock_bh(&priv->j1939_socks_lock);
+ }
+ 
++void j1939_sk_netdev_event_unregister(struct j1939_priv *priv)
++{
++	struct sock *sk;
++	struct j1939_sock *jsk;
++	bool wait_rcu = false;
++
++rescan: /* caller holds a ref on @priv via j1939_priv_get_by_ndev() */
++	read_lock_bh(&priv->j1939_socks_lock);
++	list_for_each_entry(jsk, &priv->j1939_socks, list) {
++		if (!(jsk->state & J1939_SOCK_BOUND))
++			continue;
++		sk = &jsk->sk;
++		sock_hold(sk);
++		read_unlock_bh(&priv->j1939_socks_lock);
++		lock_sock(sk);
++		if (jsk->state & J1939_SOCK_BOUND) {
++			j1939_jsk_del(priv, jsk);
++			j1939_local_ecu_put(priv, jsk->addr.src_name, jsk->addr.sa);
++			j1939_netdev_stop(priv);
++			j1939_priv_put(priv);
++			jsk->priv = NULL;
++			wait_rcu = true;
++		}
++		release_sock(sk);
++		sock_put(sk);
++		goto rescan;
++	}
++	read_unlock_bh(&priv->j1939_socks_lock);
++	if (wait_rcu)
++		synchronize_rcu();
++}
++
+ static int j1939_sk_no_ioctlcmd(struct socket *sock, unsigned int cmd,
+ 				unsigned long arg)
+ {
+diff --git a/net/netfilter/nft_objref.c b/net/netfilter/nft_objref.c
+index f5028479c028..643d9f3ebbef 100644
+--- a/net/netfilter/nft_objref.c
++++ b/net/netfilter/nft_objref.c
+@@ -22,6 +22,35 @@ static void nft_objref_eval(const struct nft_expr *expr,
+ 	obj->ops->eval(obj, regs, pkt);
+ }
+ 
++static int nft_objref_validate_obj_type(const struct nft_ctx *ctx, u32 type)
++{
++	unsigned int hooks;
++
++	switch (type) {
++	case NFT_OBJECT_SYNPROXY:
++		if (ctx->family != NFPROTO_IPV4 &&
++		    ctx->family != NFPROTO_IPV6 &&
++		    ctx->family != NFPROTO_INET)
++			return -EOPNOTSUPP;
++
++		hooks = (1 << NF_INET_LOCAL_IN) | (1 << NF_INET_FORWARD);
++
++		return nft_chain_validate_hooks(ctx->chain, hooks);
++	default:
++		break;
++	}
++
++	return 0;
++}
++
++static int nft_objref_validate(const struct nft_ctx *ctx,
++			       const struct nft_expr *expr)
++{
++	struct nft_object *obj = nft_objref_priv(expr);
++
++	return nft_objref_validate_obj_type(ctx, obj->ops->type->type);
++}
++
+ static int nft_objref_init(const struct nft_ctx *ctx,
+ 			   const struct nft_expr *expr,
+ 			   const struct nlattr * const tb[])
+@@ -93,6 +122,7 @@ static const struct nft_expr_ops nft_objref_ops = {
+ 	.activate	= nft_objref_activate,
+ 	.deactivate	= nft_objref_deactivate,
+ 	.dump		= nft_objref_dump,
++	.validate	= nft_objref_validate,
+ };
+ 
+ struct nft_objref_map {
+@@ -193,6 +223,14 @@ static void nft_objref_map_destroy(const struct nft_ctx *ctx,
+ 	nf_tables_destroy_set(ctx, priv->set);
+ }
+ 
++static int nft_objref_map_validate(const struct nft_ctx *ctx,
++				   const struct nft_expr *expr)
++{
++	const struct nft_objref_map *priv = nft_expr_priv(expr);
++
++	return nft_objref_validate_obj_type(ctx, priv->set->objtype);
++}
++
+ static struct nft_expr_type nft_objref_type;
+ static const struct nft_expr_ops nft_objref_map_ops = {
+ 	.type		= &nft_objref_type,
+@@ -203,6 +241,7 @@ static const struct nft_expr_ops nft_objref_map_ops = {
+ 	.deactivate	= nft_objref_map_deactivate,
+ 	.destroy	= nft_objref_map_destroy,
+ 	.dump		= nft_objref_map_dump,
++	.validate	= nft_objref_map_validate,
+ };
+ 
+ static const struct nft_expr_ops *
+diff --git a/net/qrtr/qrtr.c b/net/qrtr/qrtr.c
+index fcd3453d4062..48a200c10ab3 100755
+--- a/net/qrtr/qrtr.c
++++ b/net/qrtr/qrtr.c
+@@ -964,7 +964,7 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
+ 	if (cb->dst_port == QRTR_PORT_CTRL_LEGACY)
+ 		cb->dst_port = QRTR_PORT_CTRL;
+ 
+-	if (!size || len != ALIGN(size, 4) + hdrlen)
++	if (!size || size > len || len != ALIGN(size, 4) + hdrlen)
+ 		goto err;
+ 
+ 	if (cb->dst_port != QRTR_PORT_CTRL && cb->type != QRTR_TYPE_DATA &&
+diff --git a/net/sched/sch_fq_codel.c b/net/sched/sch_fq_codel.c
+index 30796bb54972..ba1ce97f4b07 100644
+--- a/net/sched/sch_fq_codel.c
++++ b/net/sched/sch_fq_codel.c
+@@ -279,7 +279,7 @@ static void drop_func(struct sk_buff *skb, void *ctx)
+ 	qdisc_qstats_drop(sch);
+ }
+ 
+-static struct sk_buff *fq_codel_dequeue(struct Qdisc *sch)
++static struct sk_buff *__fq_codel_dequeue(struct Qdisc *sch)
+ {
+ 	struct fq_codel_sched_data *q = qdisc_priv(sch);
+ 	struct sk_buff *skb;
+@@ -315,6 +315,14 @@ static struct sk_buff *fq_codel_dequeue(struct Qdisc *sch)
+ 	}
+ 	qdisc_bstats_update(sch, skb);
+ 	flow->deficit -= qdisc_pkt_len(skb);
++
++	return skb;
++}
++
++static void fq_codel_dequeue_drop(struct Qdisc *sch)
++{
++	struct fq_codel_sched_data *q = qdisc_priv(sch);
++
+ 	/* We cant call qdisc_tree_reduce_backlog() if our qlen is 0,
+ 	 * or HTB crashes. Defer it for next round.
+ 	 */
+@@ -324,6 +332,34 @@ static struct sk_buff *fq_codel_dequeue(struct Qdisc *sch)
+ 		q->cstats.drop_count = 0;
+ 		q->cstats.drop_len = 0;
+ 	}
++}
++
++static struct sk_buff *fq_codel_dequeue(struct Qdisc *sch)
++{
++	struct sk_buff *skb = __fq_codel_dequeue(sch);
++
++	fq_codel_dequeue_drop(sch);
++
++	return skb;
++}
++
++static struct sk_buff *fq_codel_peek(struct Qdisc *sch)
++{
++	struct sk_buff *skb = skb_peek(&sch->gso_skb);
++
++	if (!skb) {
++		skb = __fq_codel_dequeue(sch);
++
++		if (skb) {
++			__skb_queue_head(&sch->gso_skb, skb);
++			/* it's still part of the queue */
++			qdisc_qstats_backlog_inc(sch, skb);
++			sch->q.qlen++;
++		}
++
++		fq_codel_dequeue_drop(sch);
++	}
++
+ 	return skb;
+ }
+ 
+@@ -706,7 +742,7 @@ static struct Qdisc_ops fq_codel_qdisc_ops __read_mostly = {
+ 	.priv_size	=	sizeof(struct fq_codel_sched_data),
+ 	.enqueue	=	fq_codel_enqueue,
+ 	.dequeue	=	fq_codel_dequeue,
+-	.peek		=	qdisc_peek_dequeued,
++	.peek		=	fq_codel_peek,
+ 	.init		=	fq_codel_init,
+ 	.reset		=	fq_codel_reset,
+ 	.destroy	=	fq_codel_destroy,
+diff --git a/net/tls/tls_sw.c b/net/tls/tls_sw.c
+index 8ee0b4f52746..23b6687acbc5 100644
+--- a/net/tls/tls_sw.c
++++ b/net/tls/tls_sw.c
+@@ -727,21 +727,23 @@ static int tls_push_record(struct sock *sk, int flags,
+ 	i = msg_pl->sg.end;
+ 	sk_msg_iter_var_prev(i);
+ 
++	/* SGL does not allow chain-after-chain: build the wrap link to the
++	 * ring start *before* chaining content_type onto the last real elem.
++	 */
++	if (i < msg_pl->sg.start)
++		sg_chain(msg_pl->sg.data, ARRAY_SIZE(msg_pl->sg.data),
++			 msg_pl->sg.data);
++
+ 	rec->content_type = record_type;
+ 	if (prot->version == TLS_1_3_VERSION) {
+ 		/* Add content type to end of message.  No padding added */
+ 		sg_set_buf(&rec->sg_content_type, &rec->content_type, 1);
+ 		sg_mark_end(&rec->sg_content_type);
+-		sg_chain(msg_pl->sg.data, msg_pl->sg.end + 1,
+-			 &rec->sg_content_type);
++		sg_chain(msg_pl->sg.data, i + 2, &rec->sg_content_type);
+ 	} else {
+ 		sg_mark_end(sk_msg_elem(msg_pl, i));
+ 	}
+ 
+-	if (msg_pl->sg.end < msg_pl->sg.start)
+-		sg_chain(msg_pl->sg.data, ARRAY_SIZE(msg_pl->sg.data),
+-			 msg_pl->sg.data);
+-
+ 	i = msg_pl->sg.start;
+ 	sg_chain(rec->sg_aead_in, 2, &msg_pl->sg.data[i]);
+ 
+-- 
+2.56.0
+

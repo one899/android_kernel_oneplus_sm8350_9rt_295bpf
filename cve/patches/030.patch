@@ -1,0 +1,26 @@
+From 32974c6354e5f7abce13e127cc2a996604f591f4 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 04:06:15 +0000
+Subject: [PATCH] cve: CVE-2025-71182
+ (ebb0dfd718dd31c8d3600612ca4b7207ec3d923a)
+
+---
+ net/can/j1939/transport.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/can/j1939/transport.c b/net/can/j1939/transport.c
+index 08e516d67859..458ebfd50f1f 100644
+--- a/net/can/j1939/transport.c
++++ b/net/can/j1939/transport.c
+@@ -1555,6 +1555,8 @@ int j1939_session_activate(struct j1939_session *session)
+ 	if (active) {
+ 		j1939_session_put(active);
+ 		ret = -EAGAIN;
++	} else if (priv->ndev->reg_state != NETREG_REGISTERED) {
++		ret = -ENODEV;
+ 	} else {
+ 		WARN_ON_ONCE(session->state != J1939_SESSION_NEW);
+ 		list_add_tail(&session->active_session_list_entry,
+-- 
+2.56.0
+

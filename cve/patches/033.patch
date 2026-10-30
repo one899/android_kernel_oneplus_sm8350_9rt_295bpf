@@ -1,0 +1,26 @@
+From 0199cd777265d512e3bcba7edf7fba31d2a012d9 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 04:06:26 +0000
+Subject: [PATCH] cve: CVE-2025-71086
+ (819fb41ae54960f66025802400c9d3935eef4042)
+
+---
+ net/rose/af_rose.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/rose/af_rose.c b/net/rose/af_rose.c
+index cd9370e4b50b..5a71ac5a4c55 100644
+--- a/net/rose/af_rose.c
++++ b/net/rose/af_rose.c
+@@ -182,7 +182,7 @@ static void rose_kill_by_device(struct net_device *dev)
+ 	spin_unlock_bh(&rose_list_lock);
+ 
+ 	for (i = 0; i < cnt; i++) {
+-		sk = array[cnt];
++		sk = array[i];
+ 		rose = rose_sk(sk);
+ 		lock_sock(sk);
+ 		spin_lock_bh(&rose_list_lock);
+-- 
+2.56.0
+

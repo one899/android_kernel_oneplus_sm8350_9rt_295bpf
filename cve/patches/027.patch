@@ -1,0 +1,25 @@
+From 628b3b8b928023cc7af6053f87772bcdee2027f9 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 04:06:04 +0000
+Subject: [PATCH] cve: CVE-2026-23362
+ (0904037e713f787d1376e1d349c3bdf6c3105881)
+
+---
+ net/can/bcm.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/can/bcm.c b/net/can/bcm.c
+index ccf15fc2353c..db5985e20711 100644
+--- a/net/can/bcm.c
++++ b/net/can/bcm.c
+@@ -1125,6 +1125,7 @@ static int bcm_rx_setup(struct bcm_msg_head *msg_head, struct msghdr *msg,
+ 		if (!op)
+ 			return -ENOMEM;
+ 
++		spin_lock_init(&op->bcm_tx_lock);
+ 		op->can_id = msg_head->can_id;
+ 		op->nframes = msg_head->nframes;
+ 		op->cfsiz = CFSIZ(msg_head->flags);
+-- 
+2.56.0
+

@@ -1,0 +1,36 @@
+From c9fdfbaf340606702316a7351f41092f96c58d5d Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:46 +0000
+Subject: [PATCH] cve: jfs: fix uninitialized waitqueue in transaction manager
+
+---
+ fs/jfs/jfs_txnmgr.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/fs/jfs/jfs_txnmgr.c b/fs/jfs/jfs_txnmgr.c
+index 6f6a5b9203d3..97a2eb0f0b75 100644
+--- a/fs/jfs/jfs_txnmgr.c
++++ b/fs/jfs/jfs_txnmgr.c
+@@ -272,14 +272,15 @@ int txInit(void)
+ 	if (TxBlock == NULL)
+ 		return -ENOMEM;
+ 
+-	for (k = 1; k < nTxBlock - 1; k++) {
+-		TxBlock[k].next = k + 1;
++	for (k = 0; k < nTxBlock; k++) {
+ 		init_waitqueue_head(&TxBlock[k].gcwait);
+ 		init_waitqueue_head(&TxBlock[k].waitor);
+ 	}
++
++	for (k = 1; k < nTxBlock - 1; k++) {
++		TxBlock[k].next = k + 1;
++	}
+ 	TxBlock[k].next = 0;
+-	init_waitqueue_head(&TxBlock[k].gcwait);
+-	init_waitqueue_head(&TxBlock[k].waitor);
+ 
+ 	TxAnchor.freetid = 1;
+ 	init_waitqueue_head(&TxAnchor.freewait);
+-- 
+2.56.0
+

@@ -1,0 +1,29 @@
+From 9ce959a91aa1cf912e8f54622965aeed9ab2f21a Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:13:13 +0000
+Subject: [PATCH] cve: CVE-2026-43211
+ (ebb27b7399ab8b9eb1f792b329aa5f6250c590d4)
+
+---
+ drivers/pci/pci.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/drivers/pci/pci.c b/drivers/pci/pci.c
+index e54e408e2818..dec9145b54f5 100644
+--- a/drivers/pci/pci.c
++++ b/drivers/pci/pci.c
+@@ -5327,10 +5327,8 @@ static int pci_slot_trylock(struct pci_slot *slot)
+ 		if (!dev->slot || dev->slot != slot)
+ 			continue;
+ 		if (dev->subordinate) {
+-			if (!pci_bus_trylock(dev->subordinate)) {
+-				pci_dev_unlock(dev);
++			if (!pci_bus_trylock(dev->subordinate))
+ 				goto unlock;
+-			}
+ 		} else if (!pci_dev_trylock(dev))
+ 			goto unlock;
+ 	}
+-- 
+2.56.0
+

@@ -1,0 +1,39 @@
+From 38e1507f8e0d315547ba781157c99ed6d86d3858 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:45 +0000
+Subject: [PATCH] cve: usb: gadget: f_fs: Fix epfile null pointer access after
+ ep enable.
+
+---
+ drivers/usb/gadget/function/f_fs.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/usb/gadget/function/f_fs.c b/drivers/usb/gadget/function/f_fs.c
+index 771f873e62b4..2faf8e2ca73a 100755
+--- a/drivers/usb/gadget/function/f_fs.c
++++ b/drivers/usb/gadget/function/f_fs.c
+@@ -2254,7 +2254,12 @@ static int ffs_func_eps_enable(struct ffs_function *func)
+ 	ep = func->eps;
+ 	epfile = ffs->epfiles;
+ 	count = ffs->eps_count;
+-	while(count--) {
++	if (!epfile) {
++		ret = -ENOMEM;
++		goto done;
++	}
++
++	while (count--) {
+ 		ep->ep->driver_data = ep;
+ 
+ 		ret = config_ep_by_speed(func->gadget, &func->function, ep->ep);
+@@ -2280,6 +2285,7 @@ static int ffs_func_eps_enable(struct ffs_function *func)
+ 	}
+ 
+ 	wake_up_interruptible(&ffs->wait);
++done:
+ 	spin_unlock_irqrestore(&func->ffs->eps_lock, flags);
+ 
+ 	return ret;
+-- 
+2.56.0
+

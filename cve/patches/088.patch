@@ -1,0 +1,25 @@
+From 2985f8e79abbe3d9c42e55527222ade70fb1d7f9 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:14:15 +0000
+Subject: [PATCH] cve: CVE-2026-68117
+ (efebc23e9b29e3e5a9e2127dd066929f7f0d315e)
+
+---
+ net/tipc/socket.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/tipc/socket.c b/net/tipc/socket.c
+index cf4f90de566e..2c9805bc326e 100644
+--- a/net/tipc/socket.c
++++ b/net/tipc/socket.c
+@@ -456,6 +456,7 @@ static int tipc_sk_create(struct net *net, struct socket *sock,
+ 	tipc_set_sk_state(sk, TIPC_OPEN);
+ 	if (tipc_sk_insert(tsk)) {
+ 		sk_free(sk);
++		sock->sk = NULL;
+ 		pr_warn("Socket create failed; port number exhausted\n");
+ 		return -EINVAL;
+ 	}
+-- 
+2.56.0
+

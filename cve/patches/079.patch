@@ -1,0 +1,57 @@
+From 81f3802e5022dc43cc2b0222287381914c2f7139 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:12:57 +0000
+Subject: [PATCH] cve: CVE-2026-31581
+ (e719232f4552e29de8027a83918ea94434be87af)
+
+---
+ sound/usb/6fire/chip.c | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/sound/usb/6fire/chip.c b/sound/usb/6fire/chip.c
+index ad6f89845a5c..31b8989a021b 100644
+--- a/sound/usb/6fire/chip.c
++++ b/sound/usb/6fire/chip.c
+@@ -54,11 +54,6 @@ static void usb6fire_chip_abort(struct sfire_chip *chip)
+ 			usb6fire_comm_abort(chip);
+ 		if (chip->control)
+ 			usb6fire_control_abort(chip);
+-		if (chip->card) {
+-			snd_card_disconnect(chip->card);
+-			snd_card_free_when_closed(chip->card);
+-			chip->card = NULL;
+-		}
+ 	}
+ }
+ 
+@@ -171,6 +166,7 @@ static int usb6fire_chip_probe(struct usb_interface *intf,
+ static void usb6fire_chip_disconnect(struct usb_interface *intf)
+ {
+ 	struct sfire_chip *chip;
++	struct snd_card *card;
+ 
+ 	chip = usb_get_intfdata(intf);
+ 	if (chip) { /* if !chip, fw upload has been performed */
+@@ -181,8 +177,19 @@ static void usb6fire_chip_disconnect(struct usb_interface *intf)
+ 			chips[chip->regidx] = NULL;
+ 			mutex_unlock(&register_mutex);
+ 
++			/*
++			 * Save card pointer before teardown.
++			 * snd_card_free_when_closed() may free card (and
++			 * the embedded chip) immediately, so it must be
++			 * called last and chip must not be accessed after.
++			 */
++			card = chip->card;
+ 			chip->shutdown = true;
++			if (card)
++				snd_card_disconnect(card);
+ 			usb6fire_chip_abort(chip);
++			if (card)
++				snd_card_free_when_closed(card);
+ 		}
+ 	}
+ }
+-- 
+2.56.0
+

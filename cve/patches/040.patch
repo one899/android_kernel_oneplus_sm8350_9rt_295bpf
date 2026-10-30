@@ -1,0 +1,47 @@
+From bd656df947257199565135c430475f3f1dc88f98 Mon Sep 17 00:00:00 2001
+From: one899 <319983460@qq.com>
+Date: Wed, 28 Oct 2026 14:38:05 +0800
+Subject: [PATCH] =?UTF-8?q?cve:=20=E6=89=B9=E6=AC=A13+4=20=E6=89=8B?=
+ =?UTF-8?q?=E5=B7=A5=E8=A1=A5=E4=B8=81=EF=BC=88quota/af=5Fpacket=EF=BC=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .github/cve/b34-manual.patch | 23 -----------------------
+ 1 file changed, 23 deletions(-)
+
+diff --git a/.github/cve/b34-manual.patch b/.github/cve/b34-manual.patch
+index 7537b7621587..ce7183695b75 100644
+--- a/.github/cve/b34-manual.patch
++++ b/.github/cve/b34-manual.patch
+@@ -53,26 +53,3 @@ index 8e8fa0c..d69c9e4 100644
+  }
+  
+  /*
+-diff --git a/net/wireless/reg.c b/net/wireless/reg.c
+-index 7208714..2cbdbbf 100644
+---- a/net/wireless/reg.c
+-+++ b/net/wireless/reg.c
+-@@ -3909,6 +3909,9 @@ EXPORT_SYMBOL(regulatory_pre_cac_allowed);
+- static void cfg80211_check_and_end_cac(struct cfg80211_registered_device *rdev)
+- {
+- 	struct wireless_dev *wdev;
+-+
+-+	wiphy_lock(&rdev->wiphy);
+-+
+- 	/* If we finished CAC or received radar, we should end any
+- 	 * CAC running on the same channels.
+- 	 * the check !cfg80211_chandef_dfs_usable contain 2 options:
+-@@ -3923,6 +3926,8 @@ static void cfg80211_check_and_end_cac(struct cfg80211_registered_device *rdev)
+- 		    !cfg80211_chandef_dfs_usable(&rdev->wiphy, &wdev->chandef))
+- 			rdev_end_cac(rdev, wdev->netdev);
+- 	}
+-+
+-+	wiphy_unlock(&rdev->wiphy);
+- }
+- 
+- void regulatory_propagate_dfs_state(struct wiphy *wiphy,
+-- 
+2.56.0
+

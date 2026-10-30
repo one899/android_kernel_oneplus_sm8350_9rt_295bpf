@@ -1,0 +1,28 @@
+From 76334689d050200284ea383eab9c3364c50629e8 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:48 +0000
+Subject: [PATCH] cve: clone_private_mnt userns CAP_SYS_ADMIN (CVE-2025-38499)
+
+---
+ fs/namespace.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index f1466ae65c53..3e3fbd5a350f 100755
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -1923,6 +1923,11 @@ struct vfsmount *clone_private_mount(const struct path *path)
+ 	if (!check_mnt(old_mnt))
+ 		goto invalid;
+ 
++	if (!ns_capable(old_mnt->mnt_ns->user_ns, CAP_SYS_ADMIN)) {
++		up_read(&namespace_sem);
++		return ERR_PTR(-EPERM);
++	}
++
+ 	if (has_locked_children(old_mnt, path->dentry))
+ 		goto invalid;
+ 
+-- 
+2.56.0
+

@@ -1,0 +1,29 @@
+From 058bbde92005efb768d7fdfc7f2f69c54ac9cf44 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:46 +0000
+Subject: [PATCH] cve: ipv4: route: Prevent rt_bind_exception() from rebinding
+ stale fnhe
+
+---
+ net/ipv4/route.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/net/ipv4/route.c b/net/ipv4/route.c
+index b5d3a0004ff6..83c158bf1b51 100644
+--- a/net/ipv4/route.c
++++ b/net/ipv4/route.c
+@@ -637,6 +637,11 @@ static void fnhe_remove_oldest(struct fnhe_hash_bucket *hash)
+ 			oldest_p = fnhe_p;
+ 		}
+ 	}
++
++	/* Clear oldest->fnhe_daddr to prevent this fnhe from being
++	 * rebound with new dsts in rt_bind_exception().
++	 */
++	oldest->fnhe_daddr = 0;
+ 	fnhe_flush_routes(oldest);
+ 	*oldest_p = oldest->fnhe_next;
+ 	kfree_rcu(oldest, rcu);
+-- 
+2.56.0
+

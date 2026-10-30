@@ -1,0 +1,29 @@
+From 40b5a893c93a793c5ffaa65279b5581258013b94 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:13:41 +0000
+Subject: [PATCH] cve: CVE-2026-46321
+ (0a6f46a9332ad6958992d64d3b3a81a80b2ca940)
+
+---
+ drivers/net/tun.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/tun.c b/drivers/net/tun.c
+index 1a6b4cdc3bd5..d5276b86a8a8 100644
+--- a/drivers/net/tun.c
++++ b/drivers/net/tun.c
+@@ -2539,8 +2539,10 @@ static int tun_xdp_one(struct tun_struct *tun,
+ 	bool skb_xdp = false;
+ 	struct page *page;
+ 
+-	if (unlikely(datasize < ETH_HLEN))
++	if (unlikely(datasize < ETH_HLEN)) {
++		put_page(virt_to_head_page(xdp->data));
+ 		return -EINVAL;
++	}
+ 
+ 	xdp_prog = rcu_dereference(tun->xdp_prog);
+ 	if (xdp_prog) {
+-- 
+2.56.0
+

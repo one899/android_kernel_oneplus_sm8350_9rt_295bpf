@@ -1,0 +1,26 @@
+From 0ab026c426bae7d4eb8733cfa84f6466c65601b3 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 04:04:51 +0000
+Subject: [PATCH] cve: CVE-2026-80792
+ (75e0a544ebe9af663ef53ca21e9e9185c51fb54a)
+
+---
+ net/ipv6/ip6_output.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/ipv6/ip6_output.c b/net/ipv6/ip6_output.c
+index 4cd8214e043d..341773853b04 100755
+--- a/net/ipv6/ip6_output.c
++++ b/net/ipv6/ip6_output.c
+@@ -117,6 +117,8 @@ static int ip6_finish_output2(struct net *net, struct sock *sk, struct sk_buff *
+ 
+ 		if (res != LWTUNNEL_XMIT_CONTINUE)
+ 			return res;
++		hdr = ipv6_hdr(skb);
++		daddr = &hdr->daddr;
+ 	}
+ 
+ 	rcu_read_lock_bh();
+-- 
+2.56.0
+

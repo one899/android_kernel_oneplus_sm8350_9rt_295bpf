@@ -1,0 +1,25 @@
+From 116eed76f07c92402f4c06e9f69796211fe10316 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:42:13 +0000
+Subject: [PATCH] cve: CVE-2026-74581
+ (90c57310e266eb94e4a80d6b15a9ca131d2e82cb)
+
+---
+ net/ipv6/fib6_rules.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/ipv6/fib6_rules.c b/net/ipv6/fib6_rules.c
+index acb8610c9a9d..18ebbd105358 100644
+--- a/net/ipv6/fib6_rules.c
++++ b/net/ipv6/fib6_rules.c
+@@ -292,6 +292,7 @@ static bool fib6_rule_suppress(struct fib_rule *rule, int flags, struct fib_look
+ 
+ suppress_route:
+ 	ip6_rt_put_flags(rt, flags);
++	res->rt6 = NULL;
+ 	return true;
+ }
+ 
+-- 
+2.56.0
+

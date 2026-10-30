@@ -1,0 +1,47 @@
+From ce4ca7bffb31914cefa67ef195f54df4c39ccce4 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:33 +0000
+Subject: [PATCH] cve: nfs: Clean up /proc/net/rpc/nfs when
+ nfs_fs_proc_net_init() fails.
+
+---
+ fs/nfs/inode.c | 17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/fs/nfs/inode.c b/fs/nfs/inode.c
+index 251f45fee53c..0dc53732b5c9 100644
+--- a/fs/nfs/inode.c
++++ b/fs/nfs/inode.c
+@@ -2180,15 +2180,26 @@ EXPORT_SYMBOL_GPL(nfs_net_id);
+ static int nfs_net_init(struct net *net)
+ {
+ 	struct nfs_net *nn = net_generic(net, nfs_net_id);
++	int err;
+ 
+ 	nfs_clients_init(net);
+ 
+ 	if (!rpc_proc_register(net, &nn->rpcstats)) {
+-		nfs_clients_exit(net);
+-		return -ENOMEM;
++		err = -ENOMEM;
++		goto err_proc_rpc;
+ 	}
+ 
+-	return nfs_fs_proc_net_init(net);
++	err = nfs_fs_proc_net_init(net);
++	if (err)
++		goto err_proc_nfs;
++
++	return 0;
++
++err_proc_nfs:
++	rpc_proc_unregister(net, "nfs");
++err_proc_rpc:
++	nfs_clients_exit(net);
++	return err;
+ }
+ 
+ static void nfs_net_exit(struct net *net)
+-- 
+2.56.0
+

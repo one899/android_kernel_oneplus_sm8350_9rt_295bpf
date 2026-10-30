@@ -1,0 +1,26 @@
+From 9212c2950215efd9da4fb265bbcf6b2fa63bd84b Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:41:28 +0000
+Subject: [PATCH] cve: CVE-2026-52984
+ (0f875d52db4c921da610e481b72f03cc82fdcb72)
+
+---
+ net/sched/sch_netem.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/sched/sch_netem.c b/net/sched/sch_netem.c
+index 27bd18c74e85..f80b7b74c1c1 100644
+--- a/net/sched/sch_netem.c
++++ b/net/sched/sch_netem.c
+@@ -512,7 +512,7 @@ static int netem_enqueue(struct sk_buff *skb, struct Qdisc *sch,
+ 			1<<(prandom_u32() % 8);
+ 	}
+ 
+-	if (unlikely(q->t_len >= sch->limit)) {
++	if (unlikely(sch->q.qlen >= sch->limit)) {
+ 		/* re-link segs, so that qdisc_drop_all() frees them all */
+ 		skb->next = segs;
+ 		qdisc_drop_all(skb, sch, to_free);
+-- 
+2.56.0
+

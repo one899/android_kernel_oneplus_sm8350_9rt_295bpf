@@ -1,0 +1,26 @@
+From 54becce1ef526fdb78b461d498d9d82f49154f0d Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:30 +0000
+Subject: [PATCH] cve: media: vivid: Change the siize of the composing
+
+---
+ drivers/media/platform/vivid/vivid-vid-cap.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/media/platform/vivid/vivid-vid-cap.c b/drivers/media/platform/vivid/vivid-vid-cap.c
+index 842ebfe9b117..00935d600db0 100644
+--- a/drivers/media/platform/vivid/vivid-vid-cap.c
++++ b/drivers/media/platform/vivid/vivid-vid-cap.c
+@@ -935,8 +935,8 @@ int vivid_vid_cap_s_selection(struct file *file, void *fh, struct v4l2_selection
+ 			if (dev->has_compose_cap) {
+ 				v4l2_rect_set_min_size(compose, &min_rect);
+ 				v4l2_rect_set_max_size(compose, &max_rect);
+-				v4l2_rect_map_inside(compose, &fmt);
+ 			}
++			v4l2_rect_map_inside(compose, &fmt);
+ 			dev->fmt_cap_rect = fmt;
+ 			tpg_s_buf_height(&dev->tpg, fmt.height);
+ 		} else if (dev->has_compose_cap) {
+-- 
+2.56.0
+

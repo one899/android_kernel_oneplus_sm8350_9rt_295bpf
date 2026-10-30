@@ -1,0 +1,27 @@
+From 57f5744e9ec1fcdd9dbebdec03b6256c5ac41110 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 03:08:36 +0000
+Subject: [PATCH] cve: net: fec: Fix possible NPD in
+ fec_enet_phy_reset_after_clk_enable()
+
+---
+ drivers/net/ethernet/freescale/fec_main.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/freescale/fec_main.c b/drivers/net/ethernet/freescale/fec_main.c
+index fd7c504b44f2..e37d2f9a6c37 100644
+--- a/drivers/net/ethernet/freescale/fec_main.c
++++ b/drivers/net/ethernet/freescale/fec_main.c
+@@ -2018,7 +2018,8 @@ static void fec_enet_phy_reset_after_clk_enable(struct net_device *ndev)
+ 		 */
+ 		phy_dev = of_phy_find_device(fep->phy_node);
+ 		phy_reset_after_clk_enable(phy_dev);
+-		put_device(&phy_dev->mdio.dev);
++		if (phy_dev)
++			put_device(&phy_dev->mdio.dev);
+ 	}
+ }
+ 
+-- 
+2.56.0
+

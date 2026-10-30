@@ -1,0 +1,63 @@
+From f6a77ea17948c6add26fd42c2b389df0c9e3451c Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:14:14 +0000
+Subject: [PATCH] cve: CVE-2026-68091
+ (5a7ca028facf04921b2c1c2e4d1ee7f282510555)
+
+---
+ drivers/hid/wacom_sys.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/hid/wacom_sys.c b/drivers/hid/wacom_sys.c
+index 0f1c7a2f5185..3ee691e48739 100755
+--- a/drivers/hid/wacom_sys.c
++++ b/drivers/hid/wacom_sys.c
+@@ -2417,16 +2417,16 @@ static int wacom_parse_and_register(struct wacom *wacom, bool wireless)
+ 
+ 	error = wacom_register_inputs(wacom);
+ 	if (error)
+-		goto fail;
++		goto fail_hw_stop;
+ 
+ 	if (wacom->wacom_wac.features.device_type & WACOM_DEVICETYPE_PAD) {
+ 		error = wacom_initialize_leds(wacom);
+ 		if (error)
+-			goto fail;
++			goto fail_hw_stop;
+ 
+ 		error = wacom_initialize_remotes(wacom);
+ 		if (error)
+-			goto fail;
++			goto fail_hw_stop;
+ 	}
+ 
+ 	if (!wireless) {
+@@ -2440,14 +2440,14 @@ static int wacom_parse_and_register(struct wacom *wacom, bool wireless)
+ 		cancel_delayed_work_sync(&wacom->init_work);
+ 		_wacom_query_tablet_data(wacom);
+ 		error = -ENODEV;
+-		goto fail_quirks;
++		goto fail_hw_stop;
+ 	}
+ 
+ 	if (features->device_type & WACOM_DEVICETYPE_WL_MONITOR) {
+ 		error = hid_hw_open(hdev);
+ 		if (error) {
+ 			hid_err(hdev, "hw open failed\n");
+-			goto fail_quirks;
++			goto fail_hw_stop;
+ 		}
+ 	}
+ 
+@@ -2456,7 +2456,7 @@ static int wacom_parse_and_register(struct wacom *wacom, bool wireless)
+ 
+ 	return 0;
+ 
+-fail_quirks:
++fail_hw_stop:
+ 	hid_hw_stop(hdev);
+ fail:
+ 	wacom_release_resources(wacom);
+-- 
+2.56.0
+

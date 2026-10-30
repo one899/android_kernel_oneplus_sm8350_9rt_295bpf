@@ -1,0 +1,38 @@
+From 6cb414aef1c6e01b6a86b5a434ab3743a53a9772 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 04:05:37 +0000
+Subject: [PATCH] cve: CVE-2026-43024
+ (2f7f825a548be55420f0f5f716f6c27b9d312d3f)
+
+---
+ net/netfilter/nf_tables_api.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c
+index 60d95f8f98da..d773aeb760be 100644
+--- a/net/netfilter/nf_tables_api.c
++++ b/net/netfilter/nf_tables_api.c
+@@ -8037,8 +8037,6 @@ static int nft_verdict_init(const struct nft_ctx *ctx, struct nft_data *data,
+ 	switch (data->verdict.code) {
+ 	case NF_ACCEPT:
+ 	case NF_DROP:
+-	case NF_QUEUE:
+-		break;
+ 	case NFT_CONTINUE:
+ 	case NFT_BREAK:
+ 	case NFT_RETURN:
+@@ -8058,6 +8056,11 @@ static int nft_verdict_init(const struct nft_ctx *ctx, struct nft_data *data,
+ 
+ 		data->verdict.chain = chain;
+ 		break;
++	case NF_QUEUE:
++		/* The nft_queue expression is used for this purpose, an
++		 * immediate NF_QUEUE verdict should not ever be seen here.
++		 */
++		fallthrough;
+ 	default:
+ 		return -EINVAL;
+ 	}
+-- 
+2.56.0
+

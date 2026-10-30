@@ -1,0 +1,39 @@
+From ca26327fdd2e23374f99e166314599bee950a45f Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 04:06:03 +0000
+Subject: [PATCH] cve: CVE-2026-31570
+ (e7c99348b0612b2bc02d5ce6ff9873261cc7605f)
+
+---
+ net/can/gw.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/net/can/gw.c b/net/can/gw.c
+index ac2a5f11a766..feea52a9f24b 100644
+--- a/net/can/gw.c
++++ b/net/can/gw.c
+@@ -313,10 +313,10 @@ static void cgw_csum_crc8_rel(struct canfd_frame *cf,
+ 		return;
+ 
+ 	if (from <= to) {
+-		for (i = crc8->from_idx; i <= crc8->to_idx; i++)
++		for (i = from; i <= to; i++)
+ 			crc = crc8->crctab[crc ^ cf->data[i]];
+ 	} else {
+-		for (i = crc8->from_idx; i >= crc8->to_idx; i--)
++		for (i = from; i >= to; i--)
+ 			crc = crc8->crctab[crc ^ cf->data[i]];
+ 	}
+ 
+@@ -335,7 +335,7 @@ static void cgw_csum_crc8_rel(struct canfd_frame *cf,
+ 		break;
+ 	}
+ 
+-	cf->data[crc8->result_idx] = crc ^ crc8->final_xor_val;
++	cf->data[res] = crc ^ crc8->final_xor_val;
+ }
+ 
+ static void cgw_csum_crc8_pos(struct canfd_frame *cf,
+-- 
+2.56.0
+

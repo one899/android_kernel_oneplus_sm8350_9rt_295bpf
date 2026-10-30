@@ -1,0 +1,26 @@
+From 59e125ae6e19a446c9747695d584703dfabede3c Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:12:55 +0000
+Subject: [PATCH] cve: CVE-2026-23318
+ (82a7d0a1b88798de1a609130080ce0c65dd869e9)
+
+---
+ sound/usb/validate.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/usb/validate.c b/sound/usb/validate.c
+index 89a48d731719..39ffb462d9ad 100644
+--- a/sound/usb/validate.c
++++ b/sound/usb/validate.c
+@@ -266,7 +266,7 @@ static const struct usb_desc_validator audio_validators[] = {
+ 	/* UAC_VERSION_2, UAC2_SAMPLE_RATE_CONVERTER: not implemented yet */
+ 
+ 	/* UAC3 */
+-	FIXED(UAC_VERSION_2, UAC_HEADER, struct uac3_ac_header_descriptor),
++	FIXED(UAC_VERSION_3, UAC_HEADER, struct uac3_ac_header_descriptor),
+ 	FIXED(UAC_VERSION_3, UAC_INPUT_TERMINAL,
+ 	      struct uac3_input_terminal_descriptor),
+ 	FIXED(UAC_VERSION_3, UAC_OUTPUT_TERMINAL,
+-- 
+2.56.0
+

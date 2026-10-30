@@ -1,0 +1,39 @@
+From 9015841216cfbb154ff446cea08dbc808452867e Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:41:36 +0000
+Subject: [PATCH] cve: CVE-2026-68288
+ (d427b152b663cb2b19fcd449d792e17edbe4a938)
+
+---
+ net/core/drop_monitor.c | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/net/core/drop_monitor.c b/net/core/drop_monitor.c
+index 1c6237a88acc..d5fe5d811a8a 100644
+--- a/net/core/drop_monitor.c
++++ b/net/core/drop_monitor.c
+@@ -637,9 +637,7 @@ static int net_dm_packet_report_fill(struct sk_buff *msg, struct sk_buff *skb,
+ 	if (nla_put_u16(msg, NET_DM_ATTR_PROTO, be16_to_cpu(skb->protocol)))
+ 		goto nla_put_failure;
+ 
+-	attr = skb_put(msg, nla_total_size(payload_len));
+-	attr->nla_type = NET_DM_ATTR_PAYLOAD;
+-	attr->nla_len = nla_attr_size(payload_len);
++	attr = __nla_reserve(msg, NET_DM_ATTR_PAYLOAD, payload_len);
+ 	if (skb_copy_bits(skb, 0, nla_data(attr), payload_len))
+ 		goto nla_put_failure;
+ 
+@@ -782,9 +780,7 @@ static int net_dm_hw_packet_report_fill(struct sk_buff *msg,
+ 	if (nla_put_u16(msg, NET_DM_ATTR_PROTO, be16_to_cpu(skb->protocol)))
+ 		goto nla_put_failure;
+ 
+-	attr = skb_put(msg, nla_total_size(payload_len));
+-	attr->nla_type = NET_DM_ATTR_PAYLOAD;
+-	attr->nla_len = nla_attr_size(payload_len);
++	attr = __nla_reserve(msg, NET_DM_ATTR_PAYLOAD, payload_len);
+ 	if (skb_copy_bits(skb, 0, nla_data(attr), payload_len))
+ 		goto nla_put_failure;
+ 
+-- 
+2.56.0
+

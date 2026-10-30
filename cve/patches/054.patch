@@ -1,0 +1,32 @@
+From eb14cf8c8ba735bf2c2431c9e988c2bf834f37eb Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:41:05 +0000
+Subject: [PATCH] cve: CVE-2025-40080
+ (c365e8f20f4201d873a70385bd919f0fb531e960)
+
+---
+ drivers/block/nbd.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/block/nbd.c b/drivers/block/nbd.c
+index a3a0f09a4f47..cbd7b0325e15 100644
+--- a/drivers/block/nbd.c
++++ b/drivers/block/nbd.c
+@@ -998,6 +998,14 @@ static struct socket *nbd_get_socket(struct nbd_device *nbd, unsigned long fd,
+ 	if (!sock)
+ 		return NULL;
+ 
++	if (!sk_is_tcp(sock->sk) &&
++	    !sk_is_stream_unix(sock->sk)) {
++		dev_err(disk_to_dev(nbd->disk), "Unsupported socket: should be TCP or UNIX.\n");
++		*err = -EINVAL;
++		sockfd_put(sock);
++		return NULL;
++	}
++
+ 	if (sock->ops->shutdown == sock_no_shutdown) {
+ 		dev_err(disk_to_dev(nbd->disk), "Unsupported socket: shutdown callout must be supported.\n");
+ 		*err = -EINVAL;
+-- 
+2.56.0
+

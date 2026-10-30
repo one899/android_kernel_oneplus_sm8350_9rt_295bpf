@@ -1,0 +1,29 @@
+From e03950bf9b006d6b9675e0187accba9a314aa2cc Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 06:38:56 +0000
+Subject: [PATCH] cve: CVE-2025-68239
+ (54274ff90488b6c0f595a6518faed3cf0bc966eb)
+
+---
+ fs/binfmt_misc.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/fs/binfmt_misc.c b/fs/binfmt_misc.c
+index 7557fb429df5..2b956920554e 100644
+--- a/fs/binfmt_misc.c
++++ b/fs/binfmt_misc.c
+@@ -863,8 +863,10 @@ static ssize_t bm_register_write(struct file *file, const char __user *buffer,
+ 	inode_unlock(d_inode(root));
+ 
+ 	if (err) {
+-		if (f)
++		if (f) {
++			allow_write_access(f);
+ 			filp_close(f, NULL);
++		}
+ 		kfree(e);
+ 		return err;
+ 	}
+-- 
+2.56.0
+

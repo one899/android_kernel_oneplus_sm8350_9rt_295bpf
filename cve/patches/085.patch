@@ -1,0 +1,29 @@
+From bf550674f1f2bf01229167d44fcfd9a5d61ebf82 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:14:04 +0000
+Subject: [PATCH] cve: CVE-2026-63948
+ (50f1bcaaaa3a80bb1c3472044bc146e8d49d51ee)
+
+---
+ net/bluetooth/l2cap_core.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/net/bluetooth/l2cap_core.c b/net/bluetooth/l2cap_core.c
+index bf0fffbc986b..8887d3173720 100644
+--- a/net/bluetooth/l2cap_core.c
++++ b/net/bluetooth/l2cap_core.c
+@@ -434,8 +434,10 @@ static void l2cap_chan_timeout(struct work_struct *work)
+ 
+ 	BT_DBG("chan %p state %s", chan, state_to_string(chan->state));
+ 
+-	if (!conn)
++	if (!conn) {
++		l2cap_chan_put(chan);
+ 		return;
++	}
+ 
+ 	mutex_lock(&conn->chan_lock);
+ 	/* __set_chan_timer() calls l2cap_chan_hold(chan) while scheduling
+-- 
+2.56.0
+

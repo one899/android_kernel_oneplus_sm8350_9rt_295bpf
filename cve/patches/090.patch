@@ -1,0 +1,53 @@
+From d0e53629223331771b56d91aa821277920613198 Mon Sep 17 00:00:00 2001
+From: cve-bot <ci@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:14:25 +0000
+Subject: [PATCH] cve: CVE-2026-72450
+ (87a5bbccc7ff4edb3f42fea387124237d2ba91ee)
+
+---
+ include/net/xfrm.h     | 7 +++++++
+ net/xfrm/xfrm_policy.c | 3 +++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/include/net/xfrm.h b/include/net/xfrm.h
+index a60fddfe4511..ec1dea58ebf4 100644
+--- a/include/net/xfrm.h
++++ b/include/net/xfrm.h
+@@ -812,6 +812,9 @@ static inline bool addr_match(const void *token1, const void *token2,
+ 	unsigned int pdw;
+ 	unsigned int pbi;
+ 
++	if (prefixlen > 128)
++		return false;
++
+ 	pdw = prefixlen >> 5;	  /* num of whole u32 in prefix */
+ 	pbi = prefixlen &  0x1f;  /* num of bits in incomplete u32 in prefix */
+ 
+@@ -836,6 +839,10 @@ static inline bool addr4_match(__be32 a1, __be32 a2, u8 prefixlen)
+ 	/* C99 6.5.7 (3): u32 << 32 is undefined behaviour */
+ 	if (sizeof(long) == 4 && prefixlen == 0)
+ 		return true;
++
++	if (prefixlen > 32)
++		return false;
++
+ 	return !((a1 ^ a2) & htonl(~0UL << (32 - prefixlen)));
+ }
+ 
+diff --git a/net/xfrm/xfrm_policy.c b/net/xfrm/xfrm_policy.c
+index d52eb7707021..5033d8373fa6 100644
+--- a/net/xfrm/xfrm_policy.c
++++ b/net/xfrm/xfrm_policy.c
+@@ -225,6 +225,9 @@ __xfrm6_selector_match(const struct xfrm_selector *sel, const struct flowi *fl)
+ bool xfrm_selector_match(const struct xfrm_selector *sel, const struct flowi *fl,
+ 			 unsigned short family)
+ {
++	if (family != sel->family && sel->family != AF_UNSPEC)
++		return false;
++
+ 	switch (family) {
+ 	case AF_INET:
+ 		return __xfrm4_selector_match(sel, fl);
+-- 
+2.56.0
+
