@@ -430,7 +430,7 @@ jobs:
           git commit -m "ci: pin KSU $(cat ksu_pin.txt) (kernel build ${GITHUB_RUN_ID})" || true
           git push origin HEAD:p0/lkm || echo "push skipped"
       - name: Publish release (lkm-latest-9pro)
-        if: success() && github.ref_name == 'p0/lkm' && (github.event_name != 'workflow_dispatch' || inputs.upload == true)
+        if: success() && github.ref_name == 'test/9pro-charging' && (github.event_name != 'workflow_dispatch' || inputs.upload == true)
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -453,7 +453,7 @@ jobs:
           gh release upload lkm-latest-9pro --repo "$R" SHA256SUMS --clobber || true
           gh release view lkm-latest-9pro --repo "$R" --json assets -q ".assets[].name" || true
       - name: Upload to Cloudflare R2
-        if: always() && github.ref_name == 'p0/lkm' && (github.event_name != 'workflow_dispatch' || inputs.upload == true)
+        if: always() && github.ref_name == 'test/9pro-charging' && (github.event_name != 'workflow_dispatch' || inputs.upload == true)
         continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -466,11 +466,11 @@ jobs:
           KO=$(ls kernelsu-stripped.ko 2>/dev/null | head -1 || true)
           BOOT=$(ls boot-lkm-9pro-*.img 2>/dev/null | head -1 || true)
           if [ -n "$KO" ]; then
-            npx -y wrangler@latest r2 object put "$R2_BUCKET/kernelsu-stripped.ko" --file "$KO" --remote || true
+            npx -y wrangler@latest r2 object put "$R2_BUCKET/9pro/kernelsu-stripped.ko" --file "$KO" --remote || true
           fi
           if [ -n "$BOOT" ]; then
             cp -f "$BOOT" boot-lkm-9pro.img
-            npx -y wrangler@latest r2 object put "$R2_BUCKET/boot-lkm-9pro.img" --file boot-lkm-9pro.img --remote || true
+            npx -y wrangler@latest r2 object put "$R2_BUCKET/9pro/boot-lkm-9pro.img" --file boot-lkm-9pro.img --remote || true
           fi
           # ==== 版本清单：小程序用它和本地对比 ====
           KSUCOUNT=0
@@ -487,7 +487,7 @@ jobs:
           BOOT_SZ=$(stat -c%s boot-lkm-9pro.img 2>/dev/null || echo 0)
           printf '{"device":"lemonadep","model":"LE2120","ko":{"version":"%s","build_epoch":%s,"build_date":"%s","sha256":"%s","size":%s,"name":"kernelsu-stripped.ko"},"boot":{"version":"%s","build_epoch":%s,"build_date":"%s","sha256":"%s","size":%s,"name":"boot-lkm-9pro.img"}}' "$KSVER" "$EPOCH" "$BDATE" "$KO_SHA" "$KO_SZ" "$KREL" "$EPOCH" "$BDATE" "$BOOT_SHA" "$BOOT_SZ" > manifest.json
           cat manifest.json
-          npx -y wrangler@latest r2 object put "$R2_BUCKET/manifest.json" --file manifest.json --remote --content-type application/json || true
+          npx -y wrangler@latest r2 object put "$R2_BUCKET/9pro/manifest.json" --file manifest.json --remote --content-type application/json || true
           echo "=== r2 list ==="
           npx -y wrangler@latest r2 object list "$R2_BUCKET" --remote || true
 
