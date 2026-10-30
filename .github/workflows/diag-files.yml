@@ -1,0 +1,22 @@
+name: diag files
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/triggers/diag"
+permissions:
+  contents: read
+jobs:
+  d:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/cve-b34
+          fetch-depth: 0
+      - name: log per file
+        run: |
+          for f in net/core/dev.c drivers/usb/gadget/function/f_midi.c net/wireless/reg.c; do
+            echo "===== $f"
+            git log --oneline -5 -- "$f"
+          done

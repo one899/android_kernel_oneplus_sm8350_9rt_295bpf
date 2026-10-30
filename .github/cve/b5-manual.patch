@@ -1,0 +1,131 @@
+diff --git a/drivers/hid/hid-logitech-hidpp.c b/drivers/hid/hid-logitech-hidpp.c
+index 477b082..ac7dc35 100644
+--- a/drivers/hid/hid-logitech-hidpp.c
++++ b/drivers/hid/hid-logitech-hidpp.c
+@@ -3743,10 +3743,12 @@ static int hidpp_probe(struct hid_device *hdev, const struct hid_device_id *id)
+ 
+ 	if (hidpp->quirks & HIDPP_QUIRK_CLASS_G920) {
+ 		ret = hidpp_ff_init(hidpp, &data);
+-		if (ret)
++		if (ret) {
+ 			hid_warn(hidpp->hid_dev,
+ 		     "Unable to initialize force feedback support, errno %d\n",
+ 				 ret);
++			ret = 0;
++		}
+ 	}
+ 
+ 	return ret;
+diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
+index e90a22e..ac4b747 100644
+--- a/drivers/scsi/sd.c
++++ b/drivers/scsi/sd.c
+@@ -3607,6 +3607,7 @@ static int sd_suspend_common(struct device *dev, bool ignore_stop_errors)
+ static int sd_suspend_system(struct device *dev)
+ {
+ 	return sd_suspend_common(dev, true);
++		put_disk(gd);
+ }
+ 
+ static int sd_suspend_runtime(struct device *dev)
+diff --git a/net/ipv4/esp4.c b/net/ipv4/esp4.c
+index 9a8f0e3..cfc61cd 100644
+--- a/net/ipv4/esp4.c
++++ b/net/ipv4/esp4.c
+@@ -286,8 +286,8 @@ int esp_output_head(struct xfrm_state *x, struct sk_buff *skb, struct esp_info *
+ 			return err;
+ 	}
+ 
+-	if (ALIGN(tailen, L1_CACHE_BYTES) > PAGE_SIZE ||
+-	    ALIGN(skb->data_len, L1_CACHE_BYTES) > PAGE_SIZE)
++	if (ALIGN(skb->data_len + tailen, L1_CACHE_BYTES) >
++	    PAGE_SIZE)
+ 		goto cow;
+ 
+ 	if (!skb_cloned(skb)) {
+diff --git a/net/ipv6/esp6.c b/net/ipv6/esp6.c
+index a1cdb43..5680c46 100644
+--- a/net/ipv6/esp6.c
++++ b/net/ipv6/esp6.c
+@@ -231,8 +231,8 @@ int esp6_output_head(struct xfrm_state *x, struct sk_buff *skb, struct esp_info
+ 	struct sk_buff *trailer;
+ 	int tailen = esp->tailen;
+ 
+-	if (ALIGN(tailen, L1_CACHE_BYTES) > PAGE_SIZE ||
+-	    ALIGN(skb->data_len, L1_CACHE_BYTES) > PAGE_SIZE)
++	if (ALIGN(skb->data_len + tailen, L1_CACHE_BYTES) >
++	    PAGE_SIZE)
+ 		goto cow;
+ 
+ 	if (!skb_cloned(skb)) {
+diff --git a/net/tipc/core.c b/net/tipc/core.c
+index 58ee5ee..f8d6027 100644
+--- a/net/tipc/core.c
++++ b/net/tipc/core.c
+@@ -44,6 +44,7 @@
+ #include "node.h"
+ 
+ #include <linux/module.h>
++#include <linux/wait_bit.h>
+ 
+ /* configurable TIPC parameters */
+ unsigned int tipc_net_id __read_mostly;
+@@ -108,8 +109,7 @@ static void __net_exit tipc_exit_net(struct net *net)
+ 	tipc_nametbl_stop(net);
+ 	tipc_sk_rht_destroy(net);
+ 
+-	while (atomic_read(&tn->wq_count))
+-		cond_resched();
++	wait_var_event(&tn->wq_count, atomic_read(&tn->wq_count) == 0);
+ }
+ 
+ static void __net_exit tipc_pernet_pre_exit(struct net *net)
+diff --git a/net/tipc/udp_media.c b/net/tipc/udp_media.c
+index 1cdc9a9..2f14b3f 100644
+--- a/net/tipc/udp_media.c
++++ b/net/tipc/udp_media.c
+@@ -40,6 +40,7 @@
+ #include <linux/igmp.h>
+ #include <linux/kernel.h>
+ #include <linux/workqueue.h>
++#include <linux/wait_bit.h>
+ #include <linux/list.h>
+ #include <net/sock.h>
+ #include <net/ip.h>
+@@ -813,7 +814,8 @@ static void cleanup_bearer(struct work_struct *work)
+ 
+ 	/* Note: could use a call_rcu() to avoid another synchronize_net() */
+ 	synchronize_net();
+-	atomic_dec(&tn->wq_count);
++	if (atomic_dec_and_test(&tn->wq_count))
++		wake_up_var(&tn->wq_count);
+ 	kfree(ub);
+ }
+ 
+diff --git a/net/xdp/xdp_umem.c b/net/xdp/xdp_umem.c
+index 993f14a..7884b10 100644
+--- a/net/xdp/xdp_umem.c
++++ b/net/xdp/xdp_umem.c
+@@ -386,7 +386,8 @@ static int xdp_umem_reg(struct xdp_umem *umem, struct xdp_umem_reg *mr)
+ 			return -EINVAL;
+ 	}
+ 
+-	if (headroom >= chunk_size - XDP_PACKET_HEADROOM)
++	if (headroom > chunk_size - XDP_PACKET_HEADROOM -
++		       SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) - 128)
+ 		return -EINVAL;
+ 
+ 	umem->address = (unsigned long)addr;
+diff --git a/sound/usb/stream.c b/sound/usb/stream.c
+index c485dc6..8c6fb51 100644
+--- a/sound/usb/stream.c
++++ b/sound/usb/stream.c
+@@ -353,6 +353,8 @@ snd_pcm_chmap_elem *convert_chmap_v3(struct uac3_cluster_header_descriptor
+ 		u8 cs_type;
+ 
+ 		cs_len = le16_to_cpu(cs_desc->wLength);
++		if (cs_len < sizeof(*cs_desc))
++			break;
+ 		cs_type = cs_desc->bSegmentType;
+ 
+ 		if (cs_type == UAC3_CHANNEL_INFORMATION) {

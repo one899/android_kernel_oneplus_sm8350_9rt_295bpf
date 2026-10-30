@@ -1,0 +1,65 @@
+name: Kernel Merge Probe (5.4 -> 6.6)
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'upstream tag to compare'
+        required: false
+        default: 'v6.6'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout vendor tree (sparse: core dirs only)
+        uses: actions/checkout@v6
+        with:
+          ref: perf/eevdf-optimized
+          fetch-depth: 1
+          path: vendor
+
+      - name: Download upstream
+        run: |
+          set -x
+          T=${{ inputs.target }}
+          curl -sSL -o up.tar.xz "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${T#v}.tar.xz" || \
+          curl -sSL -o up.tar.xz "https://github.com/torvalds/linux/archive/refs/tags/${T}.tar.gz"
+          ls -l up.tar.xz
+          mkdir -p up
+          tar -xf up.tar.xz -C up --strip-components=1
+          head -5 up/Makefile
+
+      - name: Compare per subsystem
+        run: |
+          set -x
+          echo "=== vendor version ==="
+          head -5 vendor/Makefile
+          echo
+          printf "%-24s %8s %8s %10s\n" "SUBSYSTEM" "DIFFER" "SAME" "ONLY-VENDOR"
+          TOTAL=0
+          for d in kernel mm fs ipc lib block security crypto include drivers/base drivers/clk drivers/pinctrl drivers/regulator drivers/usb drivers/mmc drivers/i2c drivers/spi drivers/power drivers/gpu drivers/media sound net; do
+            if [ ! -d "vendor/$d" ] || [ ! -d "up/$d" ]; then continue; fi
+            D=$(diff -rq "vendor/$d" "up/$d" 2>/dev/null | grep -c 'differ' || true)
+            O=$(diff -rq "vendor/$d" "up/$d" 2>/dev/null | grep -c 'Only in vendor' || true)
+            TOTAL=$((TOTAL + D))
+            printf "%-24s %8s %8s %10s\n" "$d" "$D" "-" "$O"
+          done
+          echo "TOTAL_DIFFERENT=$TOTAL" >> $GITHUB_ENV
+          echo "=== total differing files in compared dirs: $TOTAL ==="
+
+      - name: Biggest offenders
+        run: |
+          for d in drivers/gpu drivers/media sound net drivers/base drivers/clk kernel mm fs; do
+            [ -d "vendor/$d" ] || continue
+            N=$(diff -rq "vendor/$d" "up/$d" 2>/dev/null | grep -c 'differ' || true)
+            echo "--- $d : $N differing files"
+            diff -rq "vendor/$d" "up/$d" 2>/dev/null | grep 'differ' | head -5
+          done
+
+      - name: Summary
+        run: |
+          echo "## Merge probe result" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- target: ${{ inputs.target }}" >> $GITHUB_STEP_SUMMARY
+          echo "- total differing files (compared dirs): ${TOTAL_DIFFERENT:-unknown}" >> $GITHUB_STEP_SUMMARY
