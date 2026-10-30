@@ -1,0 +1,346 @@
+name: P0 - 9RT KernelSU LKM test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-lkm:
+    name: Compile kernelsu.ko (LKM)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Configure Fast APT Mirror
+        uses: vegardit/fast-apt-mirror.sh@v1
+
+      - name: Make Build Environment
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y kmod cpio binutils cmake binutils-aarch64-linux-gnu git wget pahole automake flex lzop bison gperf build-essential zip curl zlib1g-dev libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip dwarves device-tree-compiler python3 ccache git-lfs gnupg imagemagick libelf-dev libncurses5-dev libsdl1.2-dev gpart fuse2fs e2fsck-static icu-doc rsync adb fastboot libstdc++6 python-is-python3 gcc-aarch64-linux-gnu 
+          mkdir -p kernel
+      - name: Checkout Kernel Source
+        uses: actions/checkout@v6
+        with:
+          path: kernel/msm-5.4
+          fetch-depth: 1
+
+      - name: Checkout Modules Source
+        uses: actions/checkout@v6
+        with:
+          repository: one899/android_kernel_modules_and_devicetree_oneplus_sm8350
+          path: temp_modules
+          ref: oneplus/sm8350_b_16.0.0_oneplus9rt
+
+      - name: Prepare Compiler
+        run: |
+          mkdir -p compiler
+          cd compiler
+          
+          curl -fL "https://github.com/Rancemxn/android_kernel_oppo_sm7325/releases/download/BuildTool/linux-x86-refs_heads_llvm-r383902b-clang-r383902.tar.gz" -o clang-r383902.tar.gz --connect-timeout 30 --retry 5 --retry-delay 5
+          mkdir -p clang-bin
+          tar -xzf clang-r383902.tar.gz -C clang-bin
+          rm clang-r383902.tar.gz
+      - name: Handle Dependencies
+        run: |
+          mv temp_modules/vendor ./vendor
+          mv temp_modules/device ./device
+          rm -rf temp_modules
+      - name: Set Release Info & Custom Version
+        run: |
+          BUILD_DATE=$(date +%Y%m%d)
+          echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
+
+      - name: rekernel
+        run: |
+          cd kernel/msm-5.4
+          curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/Rekernel/rekernel_patches.sh" -o rekernel_patches.sh
+          chmod +x rekernel_patches.sh
+          bash rekernel_patches.sh
+          mkdir -p drivers/rekernel
+          curl https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/Rekernel/rekernel_extra.patch -o rekernel_extra.patch
+          patch -p1 < rekernel_extra.patch || true
+          
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.ccache
+          key: ccache-p0-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-p0-${{ github.ref_name }}-
+            ccache-p0-
+            ccache-
+
+      - name: Configure ccache
+        run: |
+          export CCACHE_DIR="$HOME/.ccache"
+          ccache --max-size=5G
+          ccache --set-config=compression=true
+          ccache --set-config=compiler_check=content
+          ccache --set-config=sloppiness=time_macros,include_file_mtime,include_file_ctime,file_stat_matches
+          ccache --zero-stats || true
+          ccache --show-config | head -25
+
+      - name: Restore kernel out (incremental build cache)
+        uses: actions/cache/restore@v4
+        with:
+          path: kernel/msm-5.4/out
+          key: kout-p0-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            kout-p0-${{ github.ref_name }}-
+            kout-p0-
+      - name: Export KSU-needed kernel symbols
+        run: |
+          cd kernel/msm-5.4
+          SYMS="alloc_uid avc_ss_reset avtab_alloc avtab_destroy avtab_insert_nonunique avtab_search_node avtab_search_node_next change_pid do_mount ebitmap_get_bit ebitmap_set_bit ext4_unregister_sysfs free_uid hashtab_insert hashtab_search mntns_operations ns_get_path policydb_write put_seccomp_filter selinux_blob_sizes selinux_state selinux_status_update_policyload selnl_notify_policyload set_fs_pwd strncpy_from_unsafe_user tasklist_lock path_umount task_work_add uts_sem"
+          fixed_file() {
+            case "$1" in
+              __arm64_sys_close)      echo fs/open.c ;;
+              __arm64_sys_setns)      echo kernel/nsproxy.c ;;
+              __arm64_sys_unshare)    echo kernel/fork.c ;;
+              __tracepoint_sys_enter) echo kernel/trace/trace_syscalls.c ;;
+              path_umount)            echo fs/namespace.c ;;
+              task_work_add)          echo kernel/task_work.c ;;
+              uts_sem)                echo kernel/utsname.c ;;
+              tasklist_lock)          echo kernel/fork.c ;;
+            esac
+          }
+          find_def() {
+            s="$1"
+            for pat in "^[A-Za-z_][A-Za-z0-9_ \*]*[ \*]${s}\(" "^${s}\(" "^[A-Za-z_][A-Za-z0-9_ \*]*[ \*]${s}[ \t]*(=|;)" "^[A-Za-z_][A-Za-z0-9_ \*]*[ \*]${s}[ \t]+[A-Za-z_]"; do
+              f=$(grep -rlnE --include='*.c' "$pat" kernel fs mm security net drivers 2>/dev/null | head -1)
+              if [ -n "$f" ]; then echo "$f"; return 0; fi
+            done
+            return 0
+          }
+          export_one() {
+            s="$1"
+            f="$(fixed_file "$s")"
+            if [ -z "$f" ]; then f="$(find_def "$s")"; fi
+            if [ -z "$f" ] || [ ! -f "$f" ]; then echo "FAIL $s (not found)"; return 0; fi
+            if grep -q "EXPORT_SYMBOL(${s})" "$f"; then echo "SKIP $s (already)"; return 0; fi
+            if [ "$s" = "path_umount" ]; then
+              printf '\nextern int path_umount(struct path *path, int flags);\n#include <linux/export.h>\nEXPORT_SYMBOL(path_umount);\n' >> "$f"
+            else
+              printf '\n#include <linux/export.h>\nEXPORT_SYMBOL(%s);\n' "$s" >> "$f"
+            fi
+            echo "OK   $s -> $f"
+            return 0
+          }
+          for s in __arm64_sys_close __arm64_sys_setns __arm64_sys_unshare __tracepoint_sys_enter; do export_one "$s"; done
+          for s in $SYMS; do export_one "$s"; done
+          echo "=== 头文件是否被误改 ==="
+          git status --porcelain | grep -E '\.h$' && echo "!! HEADER MODIFIED" || echo "no header modified (good)"
+      - name: Compile Kernel
+        run: |
+          export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
+          export CROSS_COMPILE="aarch64-linux-gnu-"
+          export CCACHE_DIR="$HOME/.ccache"
+          export CCACHE_BASEDIR="$GITHUB_WORKSPACE"
+          export CCACHE_COMPILERCHECK=content
+          export CROSS_COMPILE_ARM32="arm-linux-androideabi-"
+          export CLANG_TRIPLE="aarch64-linux-gnu-"
+          export CLANG_PATH="$(pwd)/compiler/clang-bin/bin"
+          export ARCH="arm64"
+          export SUBARCH="arm64"
+          cd kernel/msm-5.4
+          echo "添加docker补丁中"
+          rm fs/overlayfs/util.c
+          curl -LSs "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/util.c" -o fs/overlayfs/util.c
+          rm kernel/module.c
+          curl -LSs "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/module.c" -o kernel/module.c
+          rm include/linux/sched/user.h
+          curl -LSs https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/refs/heads/main/Documentation/resources/kernel-patches/GKI/below-kernel-6.12/001.GKI-below-6.12-fix_sysvipc_kabi_3_4_5.patch -o 001.GKI-below-6.12-fix_sysvipc_kabi_3_4_5.patch
+          curl -LSs https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/user.h -o include/linux/sched/user.h
+          patch -p1 < 001.GKI-below-6.12-fix_sysvipc_kabi_3_4_5.patch
+          echo "添加docker补丁完成"
+          KSU_TAG=465490a26667ba4cf00b3be975a7e28e53978829
+          echo "Using KernelSU-Next ref: $KSU_TAG (legacy~1 = 5 commits after v3.4.0-legacy, matches manager build 5)"
+          curl -fLSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" -o ksu_setup.sh
+          bash ksu_setup.sh "$KSU_TAG"
+          sed -i 's|pr_info("handle_setresuid|pr_debug("handle_setresuid|' drivers/kernelsu/hook/setuid_hook.c 2>/dev/null || true
+          curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/syscall_hook_patches.sh" -o syscall_hook_patches.sh
+          chmod +x syscall_hook_patches.sh
+          bash syscall_hook_patches.sh
+          # KSU=m 时内核侧 CONFIG_KSU 未定义（只有 CONFIG_KSU_MODULE），
+          # 导致 KSU 内核补丁里的 path_umount 等 helper 被 #ifdef 编译掉。
+          for f in fs/namespace.c fs/internal.h; do
+            if [ -f "$f" ] && grep -q '#ifdef CONFIG_KSU\b' "$f"; then
+              sed -i 's/#ifdef CONFIG_KSU\b/#if defined(CONFIG_KSU) || defined(CONFIG_KSU_MODULE)/g' "$f"
+              echo "guard fixed: $f"
+            fi
+          done
+          grep -n 'CONFIG_KSU_MODULE' fs/namespace.c fs/internal.h 2>/dev/null | head -5 || true          # KSU=m 时内核侧 CONFIG_KSU 未定义（只有 CONFIG_KSU_MODULE），补丁里的 path_umount 会被编译掉
+          for f in fs/namespace.c fs/internal.h; do
+            if [ -f "$f" ] && grep -q '#ifdef CONFIG_KSU\b' "$f"; then
+              sed -i 's/#ifdef CONFIG_KSU\b/#if defined(CONFIG_KSU) || defined(CONFIG_KSU_MODULE)/g' "$f"
+              echo "guard fixed: $f"
+            fi
+          done
+          sed -i '/ksu_handle_devpts/d' drivers/tty/pty.c
+          sed -i 's/obj-$(CONFIG_KPROBES)/obj-y/g' kernel/Makefile
+          echo "正在用命令重构并清空报错的 selinux_hide.c..."
+          cat << 'EOF' > drivers/kernelsu/feature/selinux_hide.c
+          #include <linux/types.h>
+          #include <linux/kernel.h>
+          bool ksu_selinux_hide_status_get(void) { return false; }
+          void ksu_selinux_hide_status_set(bool enable) { }
+          int ksu_selinux_hide_init(void) { return 0; }
+          void ksu_selinux_hide_exit(void) { }
+          bool ksu_selinux_hide_enable(void) { return true; }
+          void ksu_selinux_hide_drop_backup_if_unused(void) { }
+          void ksu_selinux_hide_handle_second_stage(void) { }
+          void ksu_selinux_hide_handle_post_fs_data(void) { }
+          EOF
+          make O=out CC="ccache clang" LLVM=1 9rt_defconfig  
+          ./scripts/config --file out/.config \
+            -d CONFIG_KSU_TRACEPOINT_HOOK \
+            -m CONFIG_KSU \
+            -d CONFIG_KSU_MANUAL_HOOK \
+            -e CONFIG_KSU_KPROBES_HOOK
+          # ==== Enable namespaces for Droidspaces ====
+          ./scripts/config --file out/.config \
+            -e CONFIG_USER_NS \
+            -e CONFIG_PID_NS \
+            -e CONFIG_IPC_NS \
+            -e CONFIG_CHECKPOINT_RESTORE \
+            -e CONFIG_SYSVIPC \
+            -e CONFIG_KPROBES \
+            -e CONFIG_FTRACE_SYSCALLS \
+            -e CONFIG_TMPFS_POSIX_ACL \
+            -e CONFIG_TMPFS_XATTR
+          # ==========================================
+          ./scripts/config --file out/.config --enable CONFIG_CGROUP_PIDS
+          ./scripts/config --file out/.config --enable CONFIG_CGROUP_IO
+          ./scripts/config --file out/.config --enable CONFIG_CPUSETS
+          ./scripts/config --file out/.config --enable CONFIG_MEMCG
+          ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS
+          ./scripts/config --file out/.config --enable CONFIG_DEVTMPFS_MOUNT
+          ./scripts/config --file out/.config --enable CONFIG_OVERLAY_FS
+          # ==== kernel release string (MUST stay space free) ====
+          # Form: 5.4.295-qgki-ColorArchive-Ultra-<YY.MM.DD of the build date>
+          # e.g. a build on 2026-10-15 reports ...-Ultra-26.10.15
+          #
+          # kernel/module.c same_magic() skips past the first space of vermagic
+          # when CONFIG_MODVERSIONS=y, so a space in UTS_RELEASE makes every
+          # vendor module mismatch and nothing loads -> boot hang. Keep it
+          # space free; the guard below aborts the build if it ever is not.
+          KREL_DATE=$(date +%y.%m.%d)
+          KREL="5.4.295-qgki-ColorArchive-Ultra-lkm"
+          case "$KREL" in
+            *" "*) echo "FATAL: kernel release contains a space: $KREL"; exit 1 ;;
+          esac
+          printf '#!/bin/sh\necho "%s"\n' "-qgki-ColorArchive-Ultra-lkm" > scripts/setlocalversion
+          chmod +x scripts/setlocalversion
+          ./scripts/config --file out/.config --set-str LOCALVERSION ""
+          ./scripts/config --file out/.config -d LOCALVERSION_AUTO
+          echo "kernel release will be: $KREL"
+          # =====================================================
+
+          # ==== 5.4 compat: 5.7+ API names used by kprobe-hook path ====
+          # 5.4 的 preempt.h 在 #ifdef MODULE 下 #undef 了 preempt_enable_no_resched* 系列
+          # ("Modules have no business playing preemption tricks")，改用 preempt_enable()
+          for f in $(grep -rl 'preempt_enable_no_resched' drivers/kernelsu/ 2>/dev/null); do
+            grep -q 'linux/preempt.h' "$f" || sed -i '1i #include <linux/preempt.h>' "$f"
+          done
+          grep -rl 'preempt_enable_no_resched_notrace' drivers/kernelsu/ 2>/dev/null | xargs -r sed -i 's/preempt_enable_no_resched_notrace()/preempt_enable()/g'
+          echo "--- compat: 剩余 _notrace 调用数: $(grep -rc 'preempt_enable_no_resched_notrace' drivers/kernelsu/ 2>/dev/null | grep -v ':0' | wc -l)"
+          grep -rn 'preempt_enable()' drivers/kernelsu/feature/sucompat.c | head -3
+          # ==== 对齐 KSU 版本号到管理器 v3.4.2 (33355) ====
+          # Kbuild 用 commit 计数算版本（30000+n+289），legacy 分支算出来是 33315，
+          # 与管理器 33355 不一致会提示版本不匹配，这里直接固定。
+          KB=drivers/kernelsu/Kbuild
+          if [ -f "$KB" ]; then
+            sed -i 's/$(eval KSU_VERSION=$(shell expr 30000 + $(KSU_GIT_VERSION) + 289))/$(eval KSU_VERSION=33355)/' "$KB" 2>/dev/null || true
+            grep -n 'KSU_VERSION' "$KB" | head -5
+          fi
+          # ==== 使用我们自签管理器的签名（ColorArchive 管理器）====
+          echo "KSU_NEXT_MANAGER_SIZE=0x365" >> $GITHUB_ENV
+          echo "KSU_NEXT_MANAGER_HASH=E1F970D85873264FA5FE6EEB4EB30543F1E50A60AF083EB67B11F67824D4BE17" >> $GITHUB_ENV
+          echo "manager sig queued for make"
+          # 隐藏 /proc/modules 里的 kernelsu（仅非 root 不可见）
+          python3 .github/kernel_hide_module.py kernel/module.c || echo "hide patch skipped"
+          echo "compat done"
+          # path_umount: KSU 补丁在 LKM 模式下没把函数体编进内核，vmlinux 链接会 undefined，这里补定义
+          if ! grep -qE '^int path_umount\(' fs/namespace.c; then
+            printf '\nint path_umount(struct path *path, int flags)\n{\n\tstruct mount *mnt = real_mount(path->mnt);\n\n\tif (!check_mnt(mnt))\n\t\treturn -EINVAL;\n\tif (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))\n\t\treturn -EINVAL;\n\tif (!ns_capable(mnt->mnt_ns->user_ns, CAP_SYS_ADMIN))\n\t\treturn -EPERM;\n\treturn do_umount(mnt, flags);\n}\n' >> fs/namespace.c
+            echo '=== added fallback path_umount definition ==='
+          else
+            echo '=== path_umount already defined ==='
+          fi
+          grep -n 'int path_umount' fs/namespace.c | head -3 || true
+          make -k O=out CC="ccache clang" LLVM=1 KSU_NEXT_MANAGER_SIZE=0x365 KSU_NEXT_MANAGER_HASH=E1F970D85873264FA5FE6EEB4EB30543F1E50A60AF083EB67B11F67824D4BE17 -j$(nproc) modules
+          # ==== 同一次构建顺手产出 Image（arm64: vmlinux 的 raw 二进制，参数与 kbuild 一致）====
+          export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
+          mkdir -p out/arch/arm64/boot
+          llvm-objcopy -O binary -R .note -R .note.gnu.build-id -R .comment -S out/vmlinux out/arch/arm64/boot/Image
+          ls -l out/arch/arm64/boot/Image
+          md5sum out/arch/arm64/boot/Image
+      - name: Pack LKM boot (kernel + ksuinit + kernelsu.ko)
+        if: always()
+        run: |
+          set -x
+          IMG=kernel/msm-5.4/out/arch/arm64/boot/Image
+          KO=$(find . -name 'kernelsu.ko' | head -1)
+          if [ ! -f "$IMG" ] || [ -z "$KO" ]; then echo "missing Image or kernelsu.ko, skip pack"; exit 0; fi
+          mkdir -p /tmp/bp && cd /tmp/bp
+          wget -q https://raw.githubusercontent.com/miaizhe/magiskboot-linux/refs/heads/main/x86_64/magiskboot
+          chmod +x magiskboot
+          curl -fL "https://github.com/miaizhe/Kernel_oppo_sm7325_Reno10/releases/download/boot/boot_a.img" -o base.img
+          curl -fL "https://github.com/tiann/KernelSU/releases/download/v3.3.1/ksuinit-aarch64" -o ksuinit
+          chmod +x ksuinit
+          ./magiskboot unpack base.img
+          cp "$GITHUB_WORKSPACE/$IMG" kernel
+          ./magiskboot cpio ramdisk.cpio "rm init" || true
+          ./magiskboot cpio ramdisk.cpio "add 0750 init ksuinit"
+          ./magiskboot cpio ramdisk.cpio "add 0644 kernelsu.ko $GITHUB_WORKSPACE/$KO"
+          echo "=== ramdisk entries ==="
+          ./magiskboot cpio ramdisk.cpio "ls" 2>/dev/null | grep -E "(init$|kernelsu)" || true
+          ./magiskboot repack base.img new-boot.img
+          md5sum new-boot.img
+          cp new-boot.img "$GITHUB_WORKSPACE/boot-lkm-9rt-${BUILD_DATE}.img"
+          cd "$GITHUB_WORKSPACE" && ls -l boot-lkm-9rt-*.img
+      - name: P0 - dump LKM info
+        run: |
+          set -x
+          KO=$(find . -name 'kernelsu.ko' | head -1)
+          if [ -z "$KO" ]; then echo "NO kernelsu.ko FOUND"; find . -name '*.ko' | head -20; exit 1; fi
+          echo "KO=$KO" | tee p0_report.txt
+          ls -l "$KO" | tee -a p0_report.txt
+          echo "=== MODINFO ===" | tee -a p0_report.txt
+          modinfo "$KO" 2>&1 | head -30 | tee -a p0_report.txt
+          echo "=== UNDEFINED SYMBOLS (count + list) ===" | tee -a p0_report.txt
+          readelf -sW "$KO" | awk '$7=="UND" && $8!="" {print $8}' | sed 's/@.*//' | sort -u > und.txt
+          wc -l und.txt | tee -a p0_report.txt
+          cat und.txt | tee -a p0_report.txt
+          echo "=== DEFINED FUNCS (first 20) ===" | tee -a p0_report.txt
+          readelf -sW "$KO" | awk '$7!="UND" && $8!="" && $4=="FUNC" {print $8}' | sort -u | head -20 | tee -a p0_report.txt
+          echo "=== KERNEL IMAGE ===" | tee -a p0_report.txt
+          ls -l kernel/msm-5.4/out/arch/arm64/boot/Image* 2>&1 | tee -a p0_report.txt
+          if [ -f kernel/msm-5.4/out/arch/arm64/boot/Image ]; then
+            echo "Image md5: $(md5sum kernel/msm-5.4/out/arch/arm64/boot/Image)" | tee -a p0_report.txt
+          fi
+          echo "=== __versions section size ===" | tee -a p0_report.txt
+          readelf -SW "$KO" | grep -E '__versions|\.modinfo' | tee -a p0_report.txt
+
+      - name: Save ccache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.ccache
+          key: ccache-p0-${{ github.ref_name }}-${{ github.run_id }}
+
+      - name: Save kernel out
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: kernel/msm-5.4/out
+          key: kout-p0-${{ github.ref_name }}-${{ github.run_id }}
+      - name: Upload LKM + report
+        uses: actions/upload-artifact@v6
+        with:
+          name: p0-lkm
+          path: |
+            **/kernelsu.ko
+            p0_report.txt
+            kernel/msm-5.4/out/arch/arm64/boot/Image
+            kernel/msm-5.4/out/arch/arm64/boot/Image.gz
+            boot-lkm-9rt-*.img

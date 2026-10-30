@@ -1,0 +1,64 @@
+name: MGLRU port v3
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/triggers/mglru"
+permissions:
+  contents: write
+jobs:
+  port:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: perf/eevdf-optimized
+          fetch-depth: 0
+      - name: Branch
+        run: |
+          git config user.name mglru-ci
+          git config user.email ci@users.noreply.github.com
+          git checkout -B feat/mglru
+      - name: Download
+        run: |
+          mkdir -p /tmp/p && cd /tmp/p
+          cat > /tmp/list.txt <<EOF
+          d5b2fa1c
+          37397878
+          0182f92a
+          7f53b0e7
+          a8a158aa
+          baeb9a00
+          EOF
+          for s in $(cat /tmp/list.txt); do
+            FULL=$(curl -sS "https://git.codelinaro.org/api/v4/projects/22241/repository/commits/$s" | python3 -c "import sys,json;print(json.load(sys.stdin).get(\"id\",\"\"))" 2>/dev/null)
+            echo "$s -> $FULL"
+            [ -z "$FULL" ] && continue
+            curl -sSL -o "$s.patch" "https://git.codelinaro.org/clo/la/kernel/msm-5.4/-/commit/$FULL.patch"
+            echo "  size=$(stat -c%s "$s.patch") head=$(head -c 60 "$s.patch" | tr -d "\n")"
+          done
+      - name: Apply
+        run: |
+          OK=0; BAD=""
+          for p in /tmp/p/*.patch; do
+            if patch -p1 -f --fuzz=3 --no-backup-if-mismatch -i "$p" > /tmp/o.log 2>&1; then
+              OK=$((OK+1)); echo "OK   $(basename $p)"
+            else
+              echo "FAIL $(basename $p)"; grep -c "FAILED" /tmp/o.log || true
+              BAD="$BAD $(basename $p)"
+            fi
+          done
+          echo "=== rejects ==="
+          find . -name "*.rej" | head -20
+          echo "OK=$OK BAD=$BAD"
+          echo "OK=$OK" >> $GITHUB_ENV
+          echo "BAD=$BAD" >> $GITHUB_ENV
+      - name: Commit and push
+        run: |
+          git add -A && git commit -qm "feat(mm): MGLRU port attempt (applied various)" || echo nothing-to-commit
+          git push -f origin feat/mglru || echo push-failed
+      - name: Summary
+        if: always()
+        run: |
+          echo "applied=${OK:-0} failed=${BAD:-none}" >> $GITHUB_STEP_SUMMARY

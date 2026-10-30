@@ -1,0 +1,55 @@
+diff --git a/fs/quota/dquot.c b/fs/quota/dquot.c
+index 42c2ac0..6e4a0ad 100644
+--- a/fs/quota/dquot.c
++++ b/fs/quota/dquot.c
+@@ -161,6 +161,9 @@ static struct quota_module_name module_names[] = INIT_QUOTA_MODULE_NAMES;
+ /* SLAB cache for dquot structures */
+ static struct kmem_cache *dquot_cachep;
+ 
++/* workqueue for work quota_release_work*/
++static struct workqueue_struct *quota_unbound_wq;
++
+ int register_quota_format(struct quota_format_type *fmt)
+ {
+ 	spin_lock(&dq_list_lock);
+@@ -883,7 +886,7 @@ void dqput(struct dquot *dquot)
+ 	put_releasing_dquots(dquot);
+ 	atomic_dec(&dquot->dq_count);
+ 	spin_unlock(&dq_list_lock);
+-	queue_delayed_work(system_unbound_wq, &quota_release_work, 1);
++	queue_delayed_work(quota_unbound_wq, &quota_release_work, 1);
+ }
+ EXPORT_SYMBOL(dqput);
+ 
+@@ -3094,6 +3097,11 @@ static int __init dquot_init(void)
+ 	if (register_shrinker(&dqcache_shrinker))
+ 		panic("Cannot register dquot shrinker");
+ 
++	quota_unbound_wq = alloc_workqueue("quota_events_unbound",
++					   WQ_UNBOUND | WQ_MEM_RECLAIM, WQ_MAX_ACTIVE);
++	if (!quota_unbound_wq)
++		panic("Cannot create quota_unbound_wq\n");
++
+ 	return 0;
+ }
+ fs_initcall(dquot_init);
+diff --git a/net/packet/af_packet.c b/net/packet/af_packet.c
+index 8e8fa0c..d69c9e4 100644
+--- a/net/packet/af_packet.c
++++ b/net/packet/af_packet.c
+@@ -1928,13 +1928,13 @@ static void packet_parse_headers(struct sk_buff *skb, struct socket *sock)
+ 		skb->protocol = dev_parse_header_protocol(skb);
+ 	}
+ 
++	skb_probe_transport_header(skb);
++
+ 	/* Move network header to the right position for VLAN tagged packets */
+ 	if (likely(skb->dev->type == ARPHRD_ETHER) &&
+ 	    eth_type_vlan(skb->protocol) &&
+ 	    vlan_get_protocol_and_depth(skb, skb->protocol, &depth) != 0)
+ 		skb_set_network_header(skb, depth);
+-
+-	skb_probe_transport_header(skb);
+ }
+ 
+ /*
