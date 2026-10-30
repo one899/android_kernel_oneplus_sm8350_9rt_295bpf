@@ -2,6 +2,11 @@ name: P0 - 9RT BakaSU LKM test
 
 on:
   workflow_dispatch:
+    inputs:
+      upload:
+        description: "上传到 R2 与 GitHub Release"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -425,7 +430,7 @@ jobs:
           git commit -m "ci: pin KSU $(cat ksu_pin.txt) (kernel build ${GITHUB_RUN_ID})" || true
           git push origin HEAD:p0/lkm || echo "push skipped"
       - name: Publish release (lkm-latest)
-        if: success()
+        if: success() && (github.event_name != 'workflow_dispatch' || inputs.upload == true)
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -448,7 +453,7 @@ jobs:
           gh release upload lkm-latest --repo "$R" SHA256SUMS --clobber || true
           gh release view lkm-latest --repo "$R" --json assets -q ".assets[].name" || true
       - name: Upload to Cloudflare R2
-        if: always()
+        if: always() && (github.event_name != 'workflow_dispatch' || inputs.upload == true)
         continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
