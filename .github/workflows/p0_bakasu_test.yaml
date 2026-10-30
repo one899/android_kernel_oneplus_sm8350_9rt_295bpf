@@ -188,26 +188,55 @@ jobs:
         run: |
           set -x
           cd kernel/msm-5.4
+          # 高通 PMIC 供电路径（voter / qg / smb5）
+          ./scripts/config --file out/.config -e CONFIG_QCOM_POWER_SUPPLY || true
+          ./scripts/config --file out/.config -e CONFIG_QPNP_QG || true
+          ./scripts/config --file out/.config -e CONFIG_QPNP_SMB5 || true
+          # 9 Pro DTB 是 v2 架构，必须开 v2
           ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_V2 || true
           ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_VOOCPHY_CHGLIB || true
           ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_ADSP_VOOCPHY || true
           ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_AP_VOOCPHY || true
+          # 9 Pro 实际硬件
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_MP2762_CHARGER || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHARGEPUMP_HL7227 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_WIRELESS_P9415 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_WIRELESS_NU1619 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_MASTER_SC8547 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_SC8517 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_HL7138 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_SMART_CHARGE || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_UFCS_SC2201 || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_UFCS_SC8547A || true
+          # 日志缓冲
+          ./scripts/config --file out/.config --set-val CONFIG_LOG_BUF_SHIFT 23 || true
+          ./scripts/config --file out/.config --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 18 || true
+          # 9RT 专属符号（9 Pro 没有）
           ./scripts/config --file out/.config -d CONFIG_OPLUS_CHG_OP9RT_PMIC_VOOCPHY || true
+          # OPLUS 充电子系统
           ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG || true
+          ./scripts/config --file out/.config -e CONFIG_OPLUS_SM8350_CHARGER || true
           ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_TEST_KIT || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_ADSP_VOOCPHY || true
+          # 电池/温度采样
+          ./scripts/config --file out/.config -e CONFIG_POWER_SUPPLY || true
+          ./scripts/config --file out/.config -e CONFIG_MFD_SPMI_PMIC || true
+          ./scripts/config --file out/.config -e CONFIG_QCOM_SPMI_ADC5 || true
+          ./scripts/config --file out/.config -e CONFIG_QTI_BATTERY_CHARGER || true
+          ./scripts/config --file out/.config -e CONFIG_TYPEC || true
+          ./scripts/config --file out/.config -e CONFIG_TYPEC_UCSI || true
           # 强制编 9 Pro 充电框架
           sed -i 's|+= oplus/$|+= oplus_chg/|' drivers/power/Makefile || true
-          # oplus_chg_voter.c 与 qcom/pmic-voter.c 符号重复（find_votable 等），从 Makefile 移除
+          # oplus_chg_voter.c 与 qcom/pmic-voter.c 符号重复，移除
           sed -i '/oplus_chg_voter\\.o/d' drivers/power/oplus_chg/Makefile || true
-          # oplus_charger.h 里 15 处 #ifdef OPLUS_CHG_OP_DEF 依赖它
+          # oplus_charger.h 依赖 OPLUS_CHG_OP_DEF
           for f in $(find drivers/power/oplus_chg -name '*.c' -o -name '*.h'); do
             grep -q 'define OPLUS_CHG_OP_DEF' "$f" 2>/dev/null || \
               sed -i '1i #ifndef OPLUS_CHG_OP_DEF\n#define OPLUS_CHG_OP_DEF 1\n#endif' "$f"
           done
-          echo "OPLUS_CHG_OP_DEF files: $(grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg | wc -l)"
-          grep -n 'oplus_chg/' drivers/power/Makefile || true
-          grep -c 'oplus_chg_voter' drivers/power/oplus_chg/Makefile || true
+          echo "OP_DEF files: $(grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg | wc -l)"
+          echo "=== 重新生成配置 ==="
+          make O=out CC="ccache clang" LLVM=1 olddefconfig
+          grep -E 'CONFIG_OPLUS_CHG=|CONFIG_OPLUS_CHG_V2|CONFIG_QPNP_QG|CONFIG_QCOM_POWER_SUPPLY|CONFIG_LOG_BUF_SHIFT' out/.config || true
       - name: Compile Kernel
         run: |
           export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
