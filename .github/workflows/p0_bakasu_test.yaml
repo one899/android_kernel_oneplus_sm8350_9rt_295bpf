@@ -183,65 +183,6 @@ jobs:
           cp -f "$SRC/target/aarch64-linux-android/release/ksuinit" "$GITHUB_WORKSPACE/ksuinit-custom"
           ls -l "$GITHUB_WORKSPACE/ksuinit-custom"
 
-      - name: 9 Pro charging fixes (only on 9p branch)
-        if: github.ref_name == 'test/9pro-charging'
-        run: |
-          set -x
-          cd kernel/msm-5.4
-          # 高通 PMIC 供电路径（voter / qg / smb5）
-          ./scripts/config --file out/.config -e CONFIG_QCOM_POWER_SUPPLY || true
-          ./scripts/config --file out/.config -e CONFIG_QPNP_QG || true
-          ./scripts/config --file out/.config -e CONFIG_QPNP_SMB5 || true
-          # 9 Pro DTB 是 v2 架构，必须开 v2
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_V2 || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_VOOCPHY_CHGLIB || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_ADSP_VOOCPHY || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_AP_VOOCPHY || true
-          # 9 Pro 实际硬件
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_MP2762_CHARGER || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHARGEPUMP_HL7227 || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_WIRELESS_P9415 || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_WIRELESS_NU1619 || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_MASTER_SC8547 || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_SC8517 || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_HL7138 || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_SMART_CHARGE || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_UFCS_SC2201 || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_UFCS_SC8547A || true
-          # 日志缓冲
-          ./scripts/config --file out/.config --set-val CONFIG_LOG_BUF_SHIFT 23 || true
-          ./scripts/config --file out/.config --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 18 || true
-          # 9RT 专属符号（9 Pro 没有）
-          ./scripts/config --file out/.config -d CONFIG_OPLUS_CHG_OP9RT_PMIC_VOOCPHY || true
-          # OPLUS 充电子系统
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_SM8350_CHARGER || true
-          ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_TEST_KIT || true
-          # 电池/温度采样
-          ./scripts/config --file out/.config -e CONFIG_POWER_SUPPLY || true
-          ./scripts/config --file out/.config -e CONFIG_MFD_SPMI_PMIC || true
-          ./scripts/config --file out/.config -e CONFIG_QCOM_SPMI_ADC5 || true
-          ./scripts/config --file out/.config -e CONFIG_QTI_BATTERY_CHARGER || true
-          ./scripts/config --file out/.config -e CONFIG_TYPEC || true
-          ./scripts/config --file out/.config -e CONFIG_TYPEC_UCSI || true
-          # 强制编 9 Pro 充电框架
-          sed -i 's|+= oplus/$|+= oplus_chg/|' drivers/power/Makefile || true
-          # 注意：保留 oplus_chg_voter.o —— 9RT defconfig 没编 qcom/pmic-voter.c，
-          # vote/create_votable/find_votable 等符号由 oplus_chg_voter.c 提供
-          grep -n 'oplus_chg_voter' drivers/power/oplus_chg/Makefile || echo "  (voter 未在 Makefile 中)"
-          # oplus_charger.h 依赖 OPLUS_CHG_OP_DEF
-          for f in $(find drivers/power/oplus_chg -name '*.c' -o -name '*.h'); do
-            grep -q 'define OPLUS_CHG_OP_DEF' "$f" 2>/dev/null || \
-              sed -i '1i #ifndef OPLUS_CHG_OP_DEF\n#define OPLUS_CHG_OP_DEF 1\n#endif' "$f"
-          done
-          echo "OP_DEF files: $(grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg | wc -l)"
-          echo "=== olddefconfig（不带 LLVM=1，用系统 ld 通过 Kconfig 链接器检查）==="
-          make O=out CC=clang olddefconfig || make O=out olddefconfig || true
-          echo "=== 生效后的关键配置 ==="
-          grep -E 'CONFIG_OPLUS_CHG=|CONFIG_OPLUS_CHG_V2=|CONFIG_QPNP_QG=|CONFIG_QPNP_SMB5=|CONFIG_QCOM_POWER_SUPPLY=|CONFIG_POWER_SUPPLY=|CONFIG_LOG_BUF_SHIFT=' out/.config || true
-          echo "=== pmic-voter 是否会被编译 ==="
-          grep -n 'pmic-voter' drivers/power/supply/qcom/Makefile | head -5
-          grep -nE 'qcom-qpnp-qg|COPY_QCOM|obj-\$\(CONFIG_QPNP_QG\)' drivers/power/supply/qcom/Makefile | head -5
       - name: Compile Kernel
         run: |
           export PATH="$(pwd)/compiler/clang-bin/bin:$PATH"
@@ -312,6 +253,50 @@ jobs:
             -e CONFIG_FTRACE_SYSCALLS \
             -e CONFIG_TMPFS_POSIX_ACL \
             -e CONFIG_TMPFS_XATTR
+          # ==== 9 Pro 充电配置（仅 9p 分支，必须放在 defconfig 之后）====
+          if [ "${{ github.ref_name }}" = "test/9pro-charging" ]; then
+            echo "=== 应用 9 Pro 充电配置 ==="
+            ./scripts/config --file out/.config -e CONFIG_QCOM_POWER_SUPPLY || true
+            ./scripts/config --file out/.config -e CONFIG_QPNP_QG || true
+            ./scripts/config --file out/.config -e CONFIG_QPNP_SMB5 || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_V2 || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_VOOCPHY_CHGLIB || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_ADSP_VOOCPHY || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_AP_VOOCPHY || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_MP2762_CHARGER || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_CHARGEPUMP_HL7227 || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_WIRELESS_P9415 || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_WIRELESS_NU1619 || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_MASTER_SC8547 || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_SC8517 || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_VOOCPHY_HL7138 || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_SMART_CHARGE || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_UFCS_SC2201 || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_UFCS_SC8547A || true
+            ./scripts/config --file out/.config --set-val CONFIG_LOG_BUF_SHIFT 23 || true
+            ./scripts/config --file out/.config --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 18 || true
+            ./scripts/config --file out/.config -d CONFIG_OPLUS_CHG_OP9RT_PMIC_VOOCPHY || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_SM8350_CHARGER || true
+            ./scripts/config --file out/.config -e CONFIG_OPLUS_CHG_TEST_KIT || true
+            ./scripts/config --file out/.config -e CONFIG_POWER_SUPPLY || true
+            ./scripts/config --file out/.config -e CONFIG_MFD_SPMI_PMIC || true
+            ./scripts/config --file out/.config -e CONFIG_QCOM_SPMI_ADC5 || true
+            ./scripts/config --file out/.config -e CONFIG_QTI_BATTERY_CHARGER || true
+            ./scripts/config --file out/.config -e CONFIG_TYPEC || true
+            ./scripts/config --file out/.config -e CONFIG_TYPEC_UCSI || true
+            # 强制编 9 Pro 充电框架
+            sed -i 's|+= oplus/$|+= oplus_chg/|' drivers/power/Makefile || true
+            # oplus_charger.h 依赖 OPLUS_CHG_OP_DEF
+            for f in $(find drivers/power/oplus_chg -name '*.c' -o -name '*.h'); do
+              grep -q 'define OPLUS_CHG_OP_DEF' "$f" 2>/dev/null || \
+                sed -i '1i #ifndef OPLUS_CHG_OP_DEF\n#define OPLUS_CHG_OP_DEF 1\n#endif' "$f"
+            done
+            echo "OP_DEF files: $(grep -rl 'define OPLUS_CHG_OP_DEF' drivers/power/oplus_chg | wc -l)"
+            echo "=== 生效后的关键配置 ==="
+            ./scripts/config --file out/.config --state CONFIG_QPNP_QG || true
+            ./scripts/config --file out/.config --state CONFIG_OPLUS_CHG || true
+          fi
           # ==========================================
           ./scripts/config --file out/.config --enable CONFIG_CGROUP_PIDS
           ./scripts/config --file out/.config --enable CONFIG_CGROUP_IO
