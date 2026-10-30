@@ -1,0 +1,32 @@
+name: merge 9pro
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/triggers/merge9p"
+permissions:
+  contents: write
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: test/9pro-charging
+          fetch-depth: 0
+      - name: Trial merge
+        run: |
+          set -x
+          git config user.name merge-bot
+          git config user.email ci@users.noreply.github.com
+          git fetch origin p0/lkm
+          git merge --no-commit --no-ff origin/p0/lkm || true
+          echo "=== 冲突文件 ==="
+          git status --porcelain | awk '$1 ~ /^(UU|AA|DD|AU|UA|DU|UD)$/ {print $2}' | tee /tmp/conflicts.txt
+          wc -l /tmp/conflicts.txt
+          echo "=== 未冲突变更数 ==="
+          git status --porcelain | wc -l
+      - name: Abort (trial only)
+        run: |
+          git merge --abort || true
+          echo "trial done"
